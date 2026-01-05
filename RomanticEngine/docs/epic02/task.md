@@ -1,0 +1,13 @@
+
+- [ ] Fix `UciAdapter` double info prefix
+    - [ ] Modify `RomanticEngine.Core/Engine.cs` in `SetPosition` method.
+    - [ ] Change the error message `info string illegal move...` to `string illegal move...`. `UciAdapter` already adds the `info` prefix.
+- [ ] Fix `MultiPV` option clamping
+    - [ ] Modify `RomanticEngine.Core/Engine.cs` in `SetOption` method.
+    - [ ] Inside the `MultiPV` check, force `spinVal = 1` and update `value = "1"` so the clamped value is applied.
+- [ ] Fix `PonderHit` timeout bug
+    - [ ] Modify `RomanticEngine.Core/SearchSession.cs` in `InternalSearchWorker.Start`.
+    - [ ] After the main search loop, add a check: if `IsPondering()` is true, wait loop until it becomes false or `Token` is cancelled. This ensures `bestmove` isn't sent until PonderHit or Stop.
+- [ ] Fix flaky `SearchSessionTests` (OverlappingGo)
+    - [ ] Modify `RomanticEngine.Tests/SearchSessionTests.cs`.
+    - [ ] In `Test_OverlappingGo_CancelsPriorAndDoesNotLeakStaleOutput`, clear `infoLines` (safely under lock) effectively between the two `Go` calls (after a delay to ensure first one ran). Or adjust assertions to ignore pre-cancellation output.
