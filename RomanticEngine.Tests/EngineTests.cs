@@ -11,6 +11,14 @@ namespace RomanticEngine.Tests;
 public class EngineTests
 {
     [Fact]
+    public void Test_Engine_Construction_ExposesOptions()
+    {
+        var engine = new Engine();
+        Assert.NotNull(engine.Options);
+        Assert.NotEmpty(engine.Options);
+    }
+
+    [Fact]
     public void Test_SetOption_UpdatesConfiguration()
     {
         var engine = new Engine();

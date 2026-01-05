@@ -1,8 +1,8 @@
-- [ ] Project Baseline and Build Hygiene <!-- id: 0 -->
-    - [ ] Validate solution + project layout matches Core/Console responsibilities <!-- id: 1 -->
-    - [ ] Ensure references and dependencies are consistent and pinned <!-- id: 2 -->
-    - [ ] Enable consistent compiler settings (nullable, warnings, analyzers) across projects <!-- id: 3 -->
-    - [ ] Unit tests: build + smoke test that engine starts and can be constructed <!-- id: 4 -->
+- [x] Project Baseline and Build Hygiene <!-- id: 0 -->
+    - [x] Validate solution + project layout matches Core/Console responsibilities <!-- id: 1 -->
+    - [x] Ensure references and dependencies are consistent and pinned <!-- id: 2 -->
+    - [x] Enable consistent compiler settings (nullable, warnings, analyzers) across projects <!-- id: 3 -->
+    - [x] Unit tests: build + smoke test that engine starts and can be constructed <!-- id: 4 -->
 - [ ] Spec Alignment and Acceptance Criteria <!-- id: 5 -->
     - [ ] Convert UCI spec + internal requirements into a concrete acceptance checklist <!-- id: 6 -->
     - [ ] Define protocol behavior for malformed/unknown commands (operator-friendly defaults) <!-- id: 7 -->
