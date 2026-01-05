@@ -16,4 +16,6 @@ public interface IEngine
     void Stop();
     void PonderHit();
     void SetOption(string name, string value);
+    void SetDebug(bool enabled);
+    void Log(string direction, string message);
 }

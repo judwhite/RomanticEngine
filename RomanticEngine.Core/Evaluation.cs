@@ -9,30 +9,25 @@ namespace RomanticEngine.Core;
 
 public static class Evaluation
 {
-    // Weights (configurable later)
-    public static int MaterialWeight = 1;
-    public static int MobilityWeight = 10; // 10cp per move? R-Mobility is the goal, so maybe higher.
-    public static int KingSafetyWeight = 20;
-
-    public static int Evaluate(IGame game)
+    public static int Evaluate(IGame game, EngineConfig.EvaluationConfig config)
     {
         var pos = game.Pos;
         int score = 0;
 
-        if (Configuration.Evaluation.EnableMaterial)
+        if (config.EnableMaterial)
         {
-            score += EvaluateMaterial(pos) * Configuration.Evaluation.MaterialWeight;
+            score += EvaluateMaterial(pos) * config.MaterialWeight;
         }
 
-        if (Configuration.Evaluation.EnableRMobility)
+        if (config.EnableRMobility)
         {
             int myMobility = GetRMobility(game);
-            score += myMobility * Configuration.Evaluation.MobilityWeight;
+            score += myMobility * config.MobilityWeight;
         }
 
-        if (Configuration.Evaluation.EnableKingSafety)
+        if (config.EnableKingSafety)
         {
-            score += EvaluateKingSafety(pos) * Configuration.Evaluation.KingSafetyWeight;
+            score += EvaluateKingSafety(pos) * config.KingSafetyWeight;
         }
 
         return score;

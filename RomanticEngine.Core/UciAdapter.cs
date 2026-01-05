@@ -14,11 +14,14 @@ public class UciAdapter
         _outputWriter = outputWriter;
 
         // Hook up engine events to output
-        if (_engine is Engine concreteEngine)
-        {
-            concreteEngine.OnInfo += msg => _outputWriter($"info {msg}");
-            concreteEngine.OnBestMove += msg => _outputWriter(msg);
-        }
+        _engine.OnInfo += msg => SendOutput($"info {msg}");
+        _engine.OnBestMove += msg => SendOutput($"bestmove {msg}");
+    }
+
+    private void SendOutput(string message)
+    {
+        _engine.Log("OUT", message);
+        _outputWriter(message);
     }
 
     public void Loop()
@@ -30,57 +33,70 @@ public class UciAdapter
     public void ReceiveCommand(string command)
     {
         if (string.IsNullOrWhiteSpace(command)) return;
+        _engine.Log("IN ", command);
 
         var tokens = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var cmd = tokens[0].ToLowerInvariant();
 
-        switch (cmd)
+        try
         {
-            case "uci":
-                _outputWriter("id name RomanticEngine 1.0");
-                _outputWriter("id author Jud White");
-                foreach (var opt in _engine.Options)
-                {
-                   _outputWriter(opt.ToString()); 
-                }
-                _outputWriter("uciok");
-                break;
+            switch (cmd)
+            {
+                case "uci":
+                    SendOutput("id name RomanticEngine 1.0");
+                    SendOutput("id author Jud White");
+                    foreach (var opt in _engine.Options)
+                    {
+                       SendOutput(opt.ToString()); 
+                    }
+                    SendOutput("uciok");
+                    break;
 
-            case "isready":
-                _outputWriter("readyok");
-                break;
+                case "isready":
+                    SendOutput("readyok");
+                    break;
 
-            case "setoption":
-                ParseSetOption(tokens);
-                break;
+                case "debug":
+                    if (tokens.Length >= 2)
+                        _engine.SetDebug(tokens[1].Equals("on", StringComparison.OrdinalIgnoreCase));
+                    break;
 
-            case "ucinewgame":
-                _engine.NewGame();
-                break;
+                case "setoption":
+                    ParseSetOption(tokens);
+                    break;
 
-            case "position":
-                ParsePosition(tokens);
-                break;
+                case "ucinewgame":
+                    _engine.NewGame();
+                    break;
 
-            case "go":
-                ParseGo(tokens);
-                break;
+                case "position":
+                    ParsePosition(tokens);
+                    break;
 
-            case "stop":
-                _engine.Stop();
-                break;
+                case "go":
+                    ParseGo(tokens);
+                    break;
 
-            case "ponderhit":
-                _engine.PonderHit();
-                break;
+                case "stop":
+                    _engine.Stop();
+                    break;
 
-            case "quit":
-                // Handled by caller usually, but we can have an event or just ignore
-                break;
+                case "ponderhit":
+                    _engine.PonderHit();
+                    break;
 
-            default:
-                // Unknown command
-                break;
+                case "quit":
+                    // Handled by caller usually, but we can have an event or just ignore
+                    break;
+
+                default:
+                    // Unknown command
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            SendOutput($"info string error processing command '{command}': {ex.Message}");
         }
     }
 
@@ -119,20 +135,12 @@ public class UciAdapter
 
     private void ParsePosition(string[] tokens)
     {
-        // position [fen <fenstring> | startpos]  moves <move1> ....
+        // position [fen <fenstring> | startpos] moves <move1> ....
         if (tokens.Length < 2) return;
 
-        int movesIndex = -1;
-        for (int i = 1; i < tokens.Length; i++)
-        {
-            if (tokens[i] == "moves")
-            {
-                movesIndex = i;
-                break;
-            }
-        }
+        int movesIndex = Array.FindIndex(tokens, 1, t => t == "moves");
 
-        string fen = "";
+        string fen;
         string[]? moves = null;
 
         if (tokens[1] == "startpos")
@@ -141,20 +149,29 @@ public class UciAdapter
         }
         else if (tokens[1] == "fen")
         {
-            if (tokens.Length < 3) return; // Need at least one fen field? Actually 6, but we'll join what's there.
+            // FEN requires exactly 6 fields: 
+            // 1. Piece placement
+            // 2. Side to move
+            // 3. Castling ability
+            // 4. En passant square
+            // 5. Halfmove clock
+            // 6. Fullmove counter
+            
+            int fenFieldsCount = 6;
+            int fenStartIndex = 2;
             int end = (movesIndex == -1) ? tokens.Length : movesIndex;
-            if (end > 2)
+
+            if (end - fenStartIndex < fenFieldsCount)
             {
-                fen = string.Join(" ", tokens.Skip(2).Take(end - 2));
+                SendOutput($"info string error: FEN requires {fenFieldsCount} fields.");
+                return;
             }
-            else
-            {
-                return; // position fen moves ... with no fen? invalid.
-            }
+
+            fen = string.Join(" ", tokens.Skip(fenStartIndex).Take(fenFieldsCount));
         }
         else
         {
-            return; // unknown position type
+            return;
         }
 
         if (movesIndex != -1 && movesIndex + 1 < tokens.Length)
@@ -183,7 +200,15 @@ public class UciAdapter
                 case "depth": if (++i < tokens.Length && int.TryParse(tokens[i], out var d)) limits.Depth = d; break;
                 case "nodes": if (++i < tokens.Length && long.TryParse(tokens[i], out var n)) limits.Nodes = n; break;
                 case "movetime": if (++i < tokens.Length && int.TryParse(tokens[i], out var mt)) limits.MoveTime = mt; break;
-                case "mate": if (++i < tokens.Length && int.TryParse(tokens[i], out var m)) limits.Mate = m; break;
+                case "mate": if (++i < tokens.Length && int.TryParse(tokens[i], out var mat)) limits.Mate = mat; break;
+                case "searchmoves":
+                    // Consume remainder
+                    if (i + 1 < tokens.Length)
+                    {
+                        limits.SearchMoves = tokens.Skip(i + 1).ToArray();
+                        i = tokens.Length; // End loop
+                    }
+                    break;
             }
         }
         _engine.Go(limits);
