@@ -1,6 +1,5 @@
 using Rudzoft.ChessLib;
 using Rudzoft.ChessLib.Types;
-using Rudzoft.ChessLib.MoveGeneration;
 
 namespace RomanticEngine.Core;
 
@@ -9,107 +8,296 @@ public static class Evaluation
     public static int Evaluate(IGame game, EngineConfig.EvaluationConfig config)
     {
         var pos = game.Pos;
-        int score = 0;
+
+        // Evaluate from White's POV (White - Black), then convert to side-to-move POV for negamax.
+        int whiteScore = 0;
 
         if (config.EnableMaterial)
-        {
-            score += EvaluateMaterial(pos) * config.MaterialWeight;
-        }
+            whiteScore += EvaluateMaterialWhite(pos) * config.MaterialWeight;
 
         if (config.EnableRMobility)
-        {
-            int myMobility = GetRMobility(game);
-            score += myMobility * config.MobilityWeight;
-        }
+            whiteScore += EvaluatePseudoMobilityWhite(pos) * config.MobilityWeight;
 
         if (config.EnableKingSafety)
-        {
-            score += EvaluateKingSafety(pos) * config.KingSafetyWeight;
-        }
+            whiteScore += EvaluatePawnShieldWhite(pos) * config.KingSafetyWeight;
 
-        return score;
+        return pos.SideToMove.IsWhite ? whiteScore : -whiteScore;
     }
 
-    private static int EvaluateMaterial(IPosition pos)
+    private static int EvaluateMaterialWhite(IPosition pos)
     {
         int score = 0;
 
         for (int i = 0; i < 64; i++)
         {
-            var sq = new Square(i);
-            var pc = pos.GetPiece(sq);
-
-            // Check emptiness via Type() == PieceTypes.NoPiece or similar?
-            // Or just check if pc == Piece.EmptyPiece (if exists).
-            // Let's try Loop over PieceTypes if unsure.
-            // But GetPiece returns a Piece.
-
+            var pc = pos.GetPiece(new Square(i));
             var type = pc.Type();
-            if (type == PieceTypes.NoPieceType) continue;
 
-            int val = 0;
+            if (type is PieceTypes.NoPieceType or PieceTypes.King)
+                continue;
 
-            switch (type)
-            {
-                case PieceTypes.Pawn: val = 100; break;
-                case PieceTypes.Knight: val = 320; break;
-                case PieceTypes.Bishop: val = 330; break;
-                case PieceTypes.Rook: val = 500; break;
-                case PieceTypes.Queen: val = 900; break;
-            }
+            int val = PieceValue(type);
+            if (val == 0)
+                continue;
 
-            if (pc.ColorOf() == pos.SideToMove)
-                score += val;
-            else
-                score -= val;
+            score += pc.ColorOf().IsWhite ? val : -val;
         }
 
         return score;
     }
 
-    private static int GetRMobility(IGame game)
-    {
-        // R-Mobility = Count legal moves + (InCheck ? 0 : 0.5)
-        // We scale 0.5 to integer (e.g., 1 unit = 0.5, or just add bonus)
-
-        var moves = game.Pos.GenerateMoves();
-        int count = moves.Length;
-        int bonus = game.Pos.InCheck ? 0 : 1;
-
-        return count * 2 + bonus;
-    }
-
-    private static int EvaluateKingSafety(IPosition pos)
+    /// <summary>
+    /// Pseudo-mobility (White pseudo moves - Black pseudo moves).
+    /// Intentionally does NOT generate legal moves.
+    /// </summary>
+    private static int EvaluatePseudoMobilityWhite(IPosition pos)
     {
         int score = 0;
-        var ksq = pos.GetKingSquare(pos.SideToMove);
-        var side = pos.SideToMove;
 
-        if ((side.IsWhite && ksq.Rank == Rank.Rank1) || (!side.IsWhite && ksq.Rank == Rank.Rank8))
+        for (int i = 0; i < 64; i++)
         {
-            int forward = side.IsWhite ? 8 : -8;
-            int[] offsets = [forward - 1, forward, forward + 1];
+            var pc = pos.GetPiece(new Square(i));
+            var type = pc.Type();
 
-            foreach (var offset in offsets)
+            if (type == PieceTypes.NoPieceType)
+                continue;
+
+            bool isWhite = pc.ColorOf().IsWhite;
+
+            int mob = type switch
             {
-                int targetSqVal = ksq.AsInt() + offset;
-                if (targetSqVal is >= 0 and < 64)
-                {
-                    var targetSq = new Square(targetSqVal);
-                    // Check if target square is adjacent file (using AsInt or cast)
-                    int fileDiff = Math.Abs(targetSq.File.AsInt() - ksq.File.AsInt());
-                    if (fileDiff <= 1)
-                    {
-                        var pc = pos.GetPiece(targetSq);
-                        if (pc.Type() == PieceTypes.Pawn && pc.ColorOf() == side)
-                        {
-                            score += 10;
-                        }
-                    }
-                }
-            }
+                PieceTypes.Pawn => CountPawnPseudoMoves(pos, i, isWhite),
+                PieceTypes.Knight => CountJumpPseudoMoves(pos, i, isWhite, KnightDeltas),
+                PieceTypes.Bishop => CountSlidingPseudoMoves(pos, i, isWhite, BishopDirs),
+                PieceTypes.Rook => CountSlidingPseudoMoves(pos, i, isWhite, RookDirs),
+                PieceTypes.Queen => CountSlidingPseudoMoves(pos, i, isWhite, QueenDirs),
+                PieceTypes.King => CountJumpPseudoMoves(pos, i, isWhite, KingDeltas),
+                _ => 0
+            };
+
+            if (mob == 0)
+                continue;
+
+            score += isWhite ? mob : -mob;
         }
 
         return score;
+    }
+
+    /// <summary>
+    /// Pawn shield (White shield - Black shield).
+    /// Shield is the count of friendly pawns on the three squares directly in front of the king.
+    /// </summary>
+    private static int EvaluatePawnShieldWhite(IPosition pos)
+    {
+        int whiteKing = -1;
+        int blackKing = -1;
+
+        for (int i = 0; i < 64; i++)
+        {
+            var pc = pos.GetPiece(new Square(i));
+            if (pc.Type() != PieceTypes.King)
+                continue;
+
+            if (pc.ColorOf().IsWhite)
+                whiteKing = i;
+            else
+                blackKing = i;
+        }
+
+        // Defensive: invalid positions should not crash evaluation.
+        if (whiteKing < 0 || blackKing < 0)
+            return 0;
+
+        int whiteShield = CountPawnShield(pos, whiteKing, isWhite: true);
+        int blackShield = CountPawnShield(pos, blackKing, isWhite: false);
+
+        return whiteShield - blackShield;
+    }
+
+    private static int CountPawnShield(IPosition pos, int kingIndex, bool isWhite)
+    {
+        int file = kingIndex & 7;
+        int rank = kingIndex >> 3;
+
+        int pawnRank = rank + (isWhite ? 1 : -1);
+        if (pawnRank < 0 || pawnRank > 7)
+            return 0;
+
+        int count = 0;
+
+        for (int df = -1; df <= 1; df++)
+        {
+            int f = file + df;
+            if (f < 0 || f > 7)
+            {
+                continue;
+            }
+
+            int idx = (pawnRank << 3) + f;
+            var pc = pos.GetPiece(new Square(idx));
+
+            if (pc.Type() == PieceTypes.Pawn && pc.ColorOf().IsWhite == isWhite)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    internal static int PieceValue(PieceTypes type)
+    {
+        return type switch
+        {
+            PieceTypes.Pawn => 100,
+            PieceTypes.Knight => 320,
+            PieceTypes.Bishop => 330,
+            PieceTypes.Rook => 500,
+            PieceTypes.Queen => 900,
+            _ => 0
+        };
+    }
+
+    private static readonly (int df, int dr)[] KnightDeltas =
+    [
+        (1, 2), (2, 1), (2, -1), (1, -2),
+        (-1, -2), (-2, -1), (-2, 1), (-1, 2)
+    ];
+
+    private static readonly (int df, int dr)[] KingDeltas =
+    [
+        (1, 1), (1, 0), (1, -1),
+        (0, 1), (0, -1),
+        (-1, 1), (-1, 0), (-1, -1)
+    ];
+
+    private static readonly (int df, int dr)[] BishopDirs =
+    [
+        (1, 1), (1, -1), (-1, 1), (-1, -1)
+    ];
+
+    private static readonly (int df, int dr)[] RookDirs =
+    [
+        (1, 0), (-1, 0), (0, 1), (0, -1)
+    ];
+
+    private static readonly (int df, int dr)[] QueenDirs =
+    [
+        (1, 1), (1, -1), (-1, 1), (-1, -1),
+        (1, 0), (-1, 0), (0, 1), (0, -1)
+    ];
+
+    private static int CountJumpPseudoMoves(IPosition pos, int fromIndex, bool isWhite, (int df, int dr)[] deltas)
+    {
+        int file = fromIndex & 7;
+        int rank = fromIndex >> 3;
+
+        int count = 0;
+
+        foreach (var (df, dr) in deltas)
+        {
+            int f = file + df;
+            int r = rank + dr;
+
+            if ((uint)f > 7 || (uint)r > 7)
+                continue;
+
+            int idx = (r << 3) + f;
+            var target = pos.GetPiece(new Square(idx));
+
+            if (target.Type() == PieceTypes.NoPieceType || target.ColorOf().IsWhite != isWhite)
+                count++;
+        }
+
+        return count;
+    }
+
+    private static int CountSlidingPseudoMoves(IPosition pos, int fromIndex, bool isWhite, (int df, int dr)[] dirs)
+    {
+        int file = fromIndex & 7;
+        int rank = fromIndex >> 3;
+
+        int count = 0;
+
+        foreach (var (df, dr) in dirs)
+        {
+            int f = file + df;
+            int r = rank + dr;
+
+            while ((uint)f <= 7 && (uint)r <= 7)
+            {
+                int idx = (r << 3) + f;
+                var target = pos.GetPiece(new Square(idx));
+
+                if (target.Type() == PieceTypes.NoPieceType)
+                {
+                    count++;
+                }
+                else
+                {
+                    if (target.ColorOf().IsWhite != isWhite)
+                        count++;
+                    break;
+                }
+
+                f += df;
+                r += dr;
+            }
+        }
+
+        return count;
+    }
+
+    private static int CountPawnPseudoMoves(IPosition pos, int fromIndex, bool isWhite)
+    {
+        int file = fromIndex & 7;
+        int rank = fromIndex >> 3;
+
+        int dir = isWhite ? 1 : -1;
+        int nextRank = rank + dir;
+
+        if ((uint)nextRank > 7)
+            return 0;
+
+        int count = 0;
+
+        int oneIdx = (nextRank << 3) + file;
+
+        if (pos.GetPiece(new Square(oneIdx)).Type() == PieceTypes.NoPieceType)
+        {
+            count++;
+
+            int startRank = isWhite ? 1 : 6;
+
+            if (rank == startRank)
+            {
+                int twoRank = rank + 2 * dir;
+                int twoIdx = (twoRank << 3) + file;
+
+                if (pos.GetPiece(new Square(twoIdx)).Type() == PieceTypes.NoPieceType)
+                    count++;
+            }
+        }
+
+        if (file > 0)
+        {
+            int capIdx = (nextRank << 3) + file - 1;
+            var pc = pos.GetPiece(new Square(capIdx));
+
+            if (pc.Type() != PieceTypes.NoPieceType && pc.ColorOf().IsWhite != isWhite)
+                count++;
+        }
+
+        if (file < 7)
+        {
+            int capIdx = (nextRank << 3) + file + 1;
+            var pc = pos.GetPiece(new Square(capIdx));
+
+            if (pc.Type() != PieceTypes.NoPieceType && pc.ColorOf().IsWhite != isWhite)
+                count++;
+        }
+
+        return count;
     }
 }
