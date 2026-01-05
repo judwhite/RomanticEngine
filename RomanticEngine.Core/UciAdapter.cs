@@ -2,6 +2,10 @@ namespace RomanticEngine.Core;
 
 public class UciAdapter
 {
+    private const string EngineId = "RomanticEngine";
+    private const string Version = "1.0";
+    private const string Author = "Jud White";
+
     private readonly IEngine _engine;
     private readonly Action<string> _outputWriter;
 
@@ -23,7 +27,9 @@ public class UciAdapter
 
     public void ReceiveCommand(string command)
     {
-        if (string.IsNullOrWhiteSpace(command)) return;
+        if (string.IsNullOrWhiteSpace(command))
+            return;
+
         _engine.Log("IN ", command);
 
         var tokens = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -34,13 +40,10 @@ public class UciAdapter
             switch (cmd)
             {
                 case "uci":
-                    SendOutput("id name RomanticEngine 1.0");
-                    SendOutput("id author Jud White");
+                    SendOutput($"id name {EngineId} {Version}");
+                    SendOutput($"id author {Author}");
                     foreach (var opt in _engine.Options)
-                    {
                         SendOutput(opt.ToString());
-                    }
-
                     SendOutput("uciok");
                     break;
 
@@ -100,11 +103,14 @@ public class UciAdapter
 
         for (int i = 1; i < tokens.Length; i++)
         {
-            if (tokens[i] == "name") nameIndex = i;
-            if (tokens[i] == "value") valueIndex = i;
+            if (tokens[i] == "name")
+                nameIndex = i;
+            else if (tokens[i] == "value")
+                valueIndex = i;
         }
 
-        if (nameIndex == -1 || nameIndex + 1 >= tokens.Length) return;
+        if (nameIndex == -1 || nameIndex + 1 >= tokens.Length)
+            return;
 
         string name;
         string value = "";
@@ -113,9 +119,7 @@ public class UciAdapter
         {
             name = string.Join(" ", tokens.Skip(nameIndex + 1).Take(valueIndex - nameIndex - 1));
             if (valueIndex + 1 < tokens.Length)
-            {
                 value = string.Join(" ", tokens.Skip(valueIndex + 1));
-            }
         }
         else
         {
@@ -128,42 +132,42 @@ public class UciAdapter
     private void ParsePosition(string[] tokens)
     {
         // position [fen <fenstring> | startpos] moves <move1> ....
-        if (tokens.Length < 2) return;
+        if (tokens.Length < 2)
+            return;
 
         int movesIndex = Array.FindIndex(tokens, 1, t => t == "moves");
 
         string fen;
         string[]? moves = null;
 
-        if (tokens[1] == "startpos")
+        switch (tokens[1])
         {
-            fen = "startpos";
-        }
-        else if (tokens[1] == "fen")
-        {
-            // FEN requires exactly 6 fields:
-            // 1. Piece placement
-            // 2. Side to move
-            // 3. Castling ability
-            // 4. En passant square
-            // 5. Halfmove clock
-            // 6. Fullmove counter
+            case "startpos":
+                fen = "startpos";
+                break;
+            case "fen":
+                // FEN requires exactly 6 fields:
+                // 1. Piece placement
+                // 2. Side to move
+                // 3. Castling ability
+                // 4. En passant square
+                // 5. Halfmove clock
+                // 6. Fullmove counter
 
-            int fenFieldsCount = 6;
-            int fenStartIndex = 2;
-            int end = (movesIndex == -1) ? tokens.Length : movesIndex;
+                int fenFieldsCount = 6;
+                int fenStartIndex = 2;
+                int end = movesIndex == -1 ? tokens.Length : movesIndex;
 
-            if (end - fenStartIndex < fenFieldsCount)
-            {
-                SendOutput($"info string error: FEN requires {fenFieldsCount} fields.");
+                if (end - fenStartIndex < fenFieldsCount)
+                {
+                    SendOutput($"info string error: FEN requires {fenFieldsCount} fields.");
+                    return;
+                }
+
+                fen = string.Join(" ", tokens.Skip(fenStartIndex).Take(fenFieldsCount));
+                break;
+            default:
                 return;
-            }
-
-            fen = string.Join(" ", tokens.Skip(fenStartIndex).Take(fenFieldsCount));
-        }
-        else
-        {
-            return;
         }
 
         if (movesIndex != -1 && movesIndex + 1 < tokens.Length)
@@ -182,34 +186,47 @@ public class UciAdapter
             var token = tokens[i].ToLowerInvariant();
             switch (token)
             {
-                case "infinite": limits.Infinite = true; break;
-                case "ponder": limits.Ponder = true; break;
+                case "infinite":
+                    limits.Infinite = true;
+                    break;
+                case "ponder":
+                    limits.Ponder = true;
+                    break;
                 case "wtime":
-                    if (++i < tokens.Length && int.TryParse(tokens[i], out var wt)) limits.WhiteTime = wt;
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var wtime))
+                        limits.WhiteTime = wtime;
                     break;
                 case "btime":
-                    if (++i < tokens.Length && int.TryParse(tokens[i], out var bt)) limits.BlackTime = bt;
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var btime))
+                        limits.BlackTime = btime;
                     break;
                 case "winc":
-                    if (++i < tokens.Length && int.TryParse(tokens[i], out var wi)) limits.WhiteIncrement = wi;
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var winc))
+                        limits.WhiteIncrement = winc;
                     break;
                 case "binc":
-                    if (++i < tokens.Length && int.TryParse(tokens[i], out var bi)) limits.BlackIncrement = bi;
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var binc))
+                        limits.BlackIncrement = binc;
                     break;
                 case "movestogo":
-                    if (++i < tokens.Length && int.TryParse(tokens[i], out var mtg)) limits.MovesToGo = mtg;
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var movesToGo))
+                        limits.MovesToGo = movesToGo;
                     break;
                 case "depth":
-                    if (++i < tokens.Length && int.TryParse(tokens[i], out var d)) limits.Depth = d;
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var depth))
+                        limits.Depth = depth;
                     break;
                 case "nodes":
-                    if (++i < tokens.Length && long.TryParse(tokens[i], out var n)) limits.Nodes = n;
+                    if (++i < tokens.Length && long.TryParse(tokens[i], out var nodes))
+                        limits.Nodes = nodes;
                     break;
                 case "movetime":
-                    if (++i < tokens.Length && int.TryParse(tokens[i], out var mt)) limits.MoveTime = mt;
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var moveTime))
+                        limits.MoveTime = moveTime;
                     break;
                 case "mate":
-                    if (++i < tokens.Length && int.TryParse(tokens[i], out var mat)) limits.Mate = mat;
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var mate))
+                        limits.Mate = mate;
                     break;
                 case "searchmoves":
                     // Consume remainder
