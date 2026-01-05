@@ -1,0 +1,91 @@
+- [ ] Project Baseline and Build Hygiene <!-- id: 0 -->
+    - [ ] Validate solution + project layout matches Core/Console responsibilities <!-- id: 1 -->
+    - [ ] Ensure references and dependencies are consistent and pinned <!-- id: 2 -->
+    - [ ] Enable consistent compiler settings (nullable, warnings, analyzers) across projects <!-- id: 3 -->
+    - [ ] Unit tests: build + smoke test that engine starts and can be constructed <!-- id: 4 -->
+- [ ] Spec Alignment and Acceptance Criteria <!-- id: 5 -->
+    - [ ] Convert UCI spec + internal requirements into a concrete acceptance checklist <!-- id: 6 -->
+    - [ ] Define protocol behavior for malformed/unknown commands (operator-friendly defaults) <!-- id: 7 -->
+    - [ ] Unit tests: golden output for `uci` handshake (id/author/options/uciok) <!-- id: 8 -->
+- [ ] Move/State Management Safety (MakeMove/TakeMove) <!-- id: 9 -->
+    - [ ] Introduce a single “state stack owner” abstraction for positions (e.g., PositionDriver) <!-- id: 10 -->
+    - [ ] Refactor search recursion to use the state stack abstraction exclusively <!-- id: 11 -->
+    - [ ] Refactor `position ... moves ...` application to use correct state progression and UCI move matching <!-- id: 12 -->
+    - [ ] Add debug-time guardrails for round-trip invariants (position key / position identity) <!-- id: 13 -->
+    - [ ] Unit tests: randomized make/unmake round-trip invariants (key + identity) <!-- id: 14 -->
+    - [ ] Unit tests: special-move round-trip invariants (castling, en-passant, promotion) <!-- id: 15 -->
+    - [ ] Unit tests: library-style back-and-forth scenarios (issue-62-like usage patterns) <!-- id: 16 -->
+- [ ] Search Session Isolation and Cancellation Safety <!-- id: 17 -->
+    - [ ] Introduce per-`go` search sessions with independent cancellation <!-- id: 18 -->
+    - [ ] Ensure searches cannot concurrently mutate the same position/state <!-- id: 19 -->
+    - [ ] Guarantee exactly one terminal `bestmove` is produced per `go` <!-- id: 20 -->
+    - [ ] Ensure a new `go` cancels/invalidates the previous session (no “revival”) <!-- id: 21 -->
+    - [ ] Unit tests: overlapping `go` calls cancel prior search and do not corrupt state <!-- id: 22 -->
+    - [ ] Unit tests: `stop` during deep recursion produces a `bestmove` without exceptions <!-- id: 23 -->
+    - [ ] Unit tests: stress test repeated `go/stop` cycles for stability <!-- id: 24 -->
+- [ ] UCI Parsing Hardening and Single Source of Truth <!-- id: 25 -->
+    - [ ] Route console input loop through a single core UCI adapter/handler <!-- id: 26 -->
+    - [ ] Remove or retire duplicated protocol parsing paths <!-- id: 27 -->
+    - [ ] Harden command parsing to never throw on malformed input (bounds + validation) <!-- id: 28 -->
+    - [ ] Make `setoption` parsing robust (names/values with spaces, case-insensitive) <!-- id: 29 -->
+    - [ ] Make `position` parsing robust (startpos/fen/moves; illegal move handling) <!-- id: 30 -->
+    - [ ] Make `go` parsing robust (TryParse, bounds checks, unknown tokens ignored) <!-- id: 31 -->
+    - [ ] Unit tests: malformed commands never throw and engine keeps running <!-- id: 32 -->
+    - [ ] Unit tests: `position` parsing applies move sequences correctly (and rejects/diagnoses bad moves) <!-- id: 33 -->
+- [ ] UCI Output Correctness and Consistency <!-- id: 34 -->
+    - [ ] Define and enforce a single contract for `info` emission (no double-prefixing) <!-- id: 35 -->
+    - [ ] Ensure correct `bestmove` formatting, including `0000` when no legal move exists <!-- id: 36 -->
+    - [ ] Ensure emitted `info` lines are syntactically valid and consistent across the engine <!-- id: 37 -->
+    - [ ] Ensure error reporting uses protocol-safe output (`info string ...`) without breaking format <!-- id: 38 -->
+    - [ ] Unit tests: strict validation of emitted `info` + `bestmove` line formats <!-- id: 39 -->
+    - [ ] Unit tests: verify no output contains `info info` or malformed prefixes <!-- id: 40 -->
+- [ ] Complete UCI Search Controls and Semantics <!-- id: 41 -->
+    - [ ] Implement `go infinite` semantics (runs until `stop`) <!-- id: 42 -->
+    - [ ] Implement `go ponder` semantics (no `bestmove` until `ponderhit`/`stop`) <!-- id: 43 -->
+    - [ ] Implement `ponderhit` semantics (convert ponder search into normal search) <!-- id: 44 -->
+    - [ ] Implement `searchmoves` support <!-- id: 45 -->
+    - [ ] Implement `nodes` limit support <!-- id: 46 -->
+    - [ ] Implement `mate` limit support <!-- id: 47 -->
+    - [ ] Implement combined stopping logic when multiple limits are present <!-- id: 48 -->
+    - [ ] Unit tests: each supported limit stops search appropriately and still returns `bestmove` <!-- id: 49 -->
+    - [ ] Unit tests: ponder mode produces no `bestmove` until `ponderhit` or `stop` <!-- id: 50 -->
+- [ ] Options and Configuration Correctness <!-- id: 51 -->
+    - [ ] Ensure advertised option lines exactly match required spec (names/types/default/min/max) <!-- id: 52 -->
+    - [ ] Implement correct storage/validation for `Threads` option (min/max/default reflected accurately) <!-- id: 53 -->
+    - [ ] Implement correct storage/validation for `Hash` option (min/max/default reflected accurately) <!-- id: 54 -->
+    - [ ] Ensure `Hash` value is persisted even if resize application is deferred <!-- id: 55 -->
+    - [ ] Implement `Clear Hash` option/button behavior <!-- id: 56 -->
+    - [ ] Align `MultiPV` option behavior with what search actually does (implement or constrain) <!-- id: 57 -->
+    - [ ] Normalize `<empty>` and empty-string handling for file/path options <!-- id: 58 -->
+    - [ ] Unit tests: `setoption` updates config, validates ranges, and rejects invalid values gracefully <!-- id: 59 -->
+    - [ ] Unit tests: `uci` option output is stable and matches expected strings exactly <!-- id: 60 -->
+- [ ] Search Algorithm and Reporting Upgrades (post-correctness) <!-- id: 61 -->
+    - [ ] Implement iterative deepening control flow <!-- id: 62 -->
+    - [ ] Implement time management (wtime/btime/inc/movestogo/movetime handling) <!-- id: 63 -->
+    - [ ] Improve search reporting behavior (depth progression + stable PV reporting) <!-- id: 64 -->
+    - [ ] Ensure search stats fields are produced sensibly (nodes, nps, time, etc.) <!-- id: 65 -->
+    - [ ] Unit tests: iterative deepening reports increasing depths and terminates correctly <!-- id: 66 -->
+    - [ ] Unit tests: time-based limits stop appropriately and do not hang <!-- id: 67 -->
+    - [ ] Unit tests: `info` reporting contains required fields across iterations <!-- id: 68 -->
+- [ ] Logging and Operator Friendliness <!-- id: 69 -->
+    - [ ] Implement `debug` command behavior and on/off handling <!-- id: 70 -->
+    - [ ] Implement `Debug Log File` option integration (enabled/disabled cleanly) <!-- id: 71 -->
+    - [ ] Improve diagnostics for invalid moves / bad FEN / unsupported tokens (without crashing) <!-- id: 72 -->
+    - [ ] Ensure all exceptions are caught and surfaced in protocol-safe ways (without breaking output) <!-- id: 73 -->
+    - [ ] Unit tests: debug/log options do not change protocol correctness or introduce malformed output <!-- id: 74 -->
+    - [ ] Unit tests: invalid inputs produce `info string` diagnostics and engine continues operating <!-- id: 75 -->
+- [ ] Code Cleanup, Consistency, and Guardrails <!-- id: 76 -->
+    - [ ] Remove dead/unused configuration/evaluation fields and unify sources of truth <!-- id: 77 -->
+    - [ ] Fix event subscriptions to rely on the interface surface (no concrete-type checks) <!-- id: 78 -->
+    - [ ] Standardize naming and simplify constructs across core/console boundaries <!-- id: 79 -->
+    - [ ] Reduce test flakiness by preferring deterministic stopping conditions over timing sleeps <!-- id: 80 -->
+    - [ ] Unit tests: core engine handles basic command sequence (`uci/isready/position/go/stop`) end-to-end <!-- id: 81 -->
+    - [ ] Unit tests: guardrail tests to prevent bypassing state-stack abstraction (architecture safety) <!-- id: 82 -->
+- [ ] Verification and Regression Suite <!-- id: 83 -->
+    - [ ] Build a scripted UCI integration harness (feed commands, capture output, assert invariants) <!-- id: 84 -->
+    - [ ] Add golden-file integration tests for handshake/options and key protocol sequences <!-- id: 85 -->
+    - [ ] Add regression test for BUG_01 scenario (`go depth 12` must not throw) <!-- id: 86 -->
+    - [ ] Add stress/integration scenarios for repeated `position/go/stop/ucinewgame` cycles <!-- id: 87 -->
+    - [ ] Create a manual verification runbook for at least one GUI workflow (Arena/cutechess) <!-- id: 88 -->
+    - [ ] Unit tests: integration scenarios ensure exactly one `bestmove` per `go` across scripts <!-- id: 89 -->
+    - [ ] Unit tests: integration scenarios validate legality and formatting of PV moves in `info pv` <!-- id: 90 -->
