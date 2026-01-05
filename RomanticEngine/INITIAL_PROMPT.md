@@ -8,6 +8,6 @@ Use the Console Application to handle setting up the stdin/stdout loops and othe
 
 Create a new project (or multiple) within the solution to hold core engine logic, etc. where it makes sense.
 
-The evaluation does not need to be perfect. Focus on correctly implementing the protocol and generating legal moves and a *reasonable* evaluation based on heuristics or handcrafted rules. Use ideas from this page https://wiki.chessdom.org/index.php?title=R-Mobility&oldid=4235 to approximate evaluation.
+The evaluation does not need to be perfect. Focus on correctly implementing the protocol and generating legal moves and a *reasonable* evaluation based on heuristics or handcrafted rules. Use ideas from this page https://wiki.chessdom.org/index.php?title=R-Mobility to approximate evaluation.
 
 You may use existing libraries for chess move generation, but implement the core logic yourself to ensure understanding and control.

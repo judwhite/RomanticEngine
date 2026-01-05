@@ -30,12 +30,12 @@ public class Engine : IEngine
     private void InitializeOptions()
     {
         // Standard Options per UCI_PROTOCOL.md
-        _options.Add(new UciOption { Name = "Debug Log File", Type = UciOptionType.String, DefaultValue = "", OnChanged = val => Configuration.Standard.DebugLogFile = val });
-        _options.Add(new UciOption { Name = "Threads", Type = UciOptionType.Spin, DefaultValue = "1", Min = 1, Max = 1024, OnChanged = val => Configuration.Standard.Threads = int.Parse(val) });
-        _options.Add(new UciOption { Name = "Hash", Type = UciOptionType.Spin, DefaultValue = "16", Min = 1, Max = 1024, OnChanged = val => { /* TODO: Resize Hash */ } });
+        _options.Add(new UciOption { Name = "Debug Log File", Type = UciOptionType.String, DefaultValue = "<empty>", OnChanged = val => Configuration.Standard.DebugLogFile = val });
+        _options.Add(new UciOption { Name = "Threads", Type = UciOptionType.Spin, DefaultValue = "1", Min = 1, Max = 28, OnChanged = val => Configuration.Standard.Threads = int.Parse(val) });
+        _options.Add(new UciOption { Name = "Hash", Type = UciOptionType.Spin, DefaultValue = "16", Min = 1, Max = 120395, OnChanged = val => { /* TODO: Resize Hash */ } });
         _options.Add(new UciOption { Name = "Clear Hash", Type = UciOptionType.Button, OnChanged = val => { /* TODO: Clear Hash */ } });
         _options.Add(new UciOption { Name = "Ponder", Type = UciOptionType.Check, DefaultValue = "false", OnChanged = val => Configuration.Standard.Ponder = bool.Parse(val) });
-        _options.Add(new UciOption { Name = "MultiPV", Type = UciOptionType.Spin, DefaultValue = "1", Min = 1, Max = 500, OnChanged = val => Configuration.Standard.MultiPV = int.Parse(val) });
+        _options.Add(new UciOption { Name = "MultiPV", Type = UciOptionType.Spin, DefaultValue = "1", Min = 1, Max = 256, OnChanged = val => Configuration.Standard.MultiPV = int.Parse(val) });
         _options.Add(new UciOption { Name = "Move Overhead", Type = UciOptionType.Spin, DefaultValue = "10", Min = 0, Max = 5000, OnChanged = val => Configuration.Standard.MoveOverhead = int.Parse(val) });
         _options.Add(new UciOption { Name = "SyzygyPath", Type = UciOptionType.String, DefaultValue = "<empty>", OnChanged = val => Configuration.Standard.SyzygyPath = val });
 

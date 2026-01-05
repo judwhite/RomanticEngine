@@ -71,7 +71,8 @@ public class Search
             string scoreStr = IsMate(score, out int mateIn) ? $"mate {mateIn}" : $"cp {score}";
             long nps = currentTime > 0 ? (_nodes * 1000) / currentTime : 0;
             
-            onInfo?.Invoke($"depth {depth} score {scoreStr} nodes {_nodes} time {currentTime} nps {nps} pv {bestMove}");
+            // Standardizing output
+            onInfo?.Invoke($"depth {depth} multipv 1 score {scoreStr} nodes {_nodes} nps {nps} hashfull 0 tbhits 0 time {currentTime} pv {bestMove}");
             
             // Check time after iteration
              if (_stopTime > 0 && Stopwatch.GetTimestamp() > _stopTime)
@@ -125,11 +126,17 @@ public class Search
         }
 
         // Move ordering would go here
-
+        
+        // Count pseudo-legal moves for simple selectivity metric? 
+        // Or just use depth. For now seldepth = depth.
+        
         foreach (var move in moves)
         {
-            _game.Pos.MakeMove(move, _game.Pos.State);
+            var newState = new State();
+            _game.Pos.MakeMove(move, newState);
+            
             int score = -AlphaBeta(depth - 1, -beta, -alpha, out _);
+            
             _game.Pos.TakeMove(move);
 
             if (_stop) return 0;

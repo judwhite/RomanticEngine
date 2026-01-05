@@ -499,3 +499,11 @@ UCI engines must be able to accept input at any time (even while searching), but
         - `isready` → reply `readyok` immediately
 
 **Synchronization rule of thumb:** every `go ...` (including `go ponder ...`) must eventually be “closed out” by exactly one `bestmove ...` line. Even if the client plans to ignore that `bestmove` (e.g., because it aborted pondering due to a mismatched opponent move), it should still read it to keep the protocol stream aligned.
+
+## External Links
+
+* https://github.com/official-stockfish/Stockfish/wiki/UCI-&-Commands
+* https://backscattering.de/chess/uci/
+* https://www.chessprogramming.org/UCI
+* https://wiki.chessdom.org/index.php?title=R-Mobility
+* https://www.chessprogramming.org/Mobility

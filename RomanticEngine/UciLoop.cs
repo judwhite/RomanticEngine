@@ -9,6 +9,7 @@ public class UciLoop
 {
     private readonly IEngine _engine;
 
+    // TODO: this class should be using `UciAdapter`, as discussed in `BUG_01.md`.
     public UciLoop(IEngine engine)
     {
         _engine = engine;
