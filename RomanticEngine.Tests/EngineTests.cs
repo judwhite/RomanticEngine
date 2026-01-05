@@ -173,28 +173,45 @@ public class EngineTests
     }
     
     [Fact]
-    public void Test_Uci_Output_Correctness()
+    public void Test_Uci_Handshake_Golden()
     {
         var engine = new Engine();
         var outputs = new List<string>();
-        // Use UciAdapter with a list capture
         var adapter = new UciAdapter(engine, outputs.Add);
         
-        // Simulate "uci" command
         adapter.ReceiveCommand("uci");
         
-        // Verify output
-        Assert.Contains("id name RomanticEngine 1.0", outputs);
-        Assert.Contains("id author Jud White", outputs);
-        Assert.Contains("uciok", outputs);
+        // Assert exact strings and ordering
+        Assert.Equal("id name RomanticEngine 1.0", outputs[0]);
+        Assert.Equal("id author Jud White", outputs[1]);
         
-        // Options check (partial or exact strings)
-        Assert.Contains(outputs, s => s.StartsWith("option name Hash") && s.Contains("default 16"));
-        Assert.Contains(outputs, s => s.StartsWith("option name Threads") && s.Contains("min 1"));
-        Assert.Contains(outputs, s => s.StartsWith("option name Debug Log File") && s.Contains("string"));
+        // Verify all 14 options are present and correctly formatted
+        // Standard Options
+        Assert.Contains("option name Debug Log File type string default <empty>", outputs);
+        Assert.Contains("option name Threads type spin default 1 min 1 max 28", outputs);
+        Assert.Contains("option name Hash type spin default 16 min 1 max 120395", outputs);
+        Assert.Contains("option name Clear Hash type button", outputs);
+        Assert.Contains("option name Ponder type check default false", outputs);
+        Assert.Contains("option name MultiPV type spin default 1 min 1 max 256", outputs);
+        Assert.Contains("option name Move Overhead type spin default 10 min 0 max 5000", outputs);
+        Assert.Contains("option name SyzygyPath type string default <empty>", outputs);
         
-        // Count total options (Standard 8 + Custom 6 = 14) + 2 IDs + 1 uciok = 17 lines
+        // Custom Heuristics
+        Assert.Contains("option name EnableMaterial type check default true", outputs);
+        Assert.Contains("option name EnableRMobility type check default true", outputs);
+        Assert.Contains("option name EnableKingSafety type check default true", outputs);
+        Assert.Contains("option name MaterialWeight type spin default 1 min 0 max 100", outputs);
+        Assert.Contains("option name MobilityWeight type spin default 10 min 0 max 100", outputs);
+        Assert.Contains("option name KingSafetyWeight type spin default 20 min 0 max 100", outputs);
+        
+        // Check uciok is last
+        Assert.Equal("uciok", outputs.Last());
+        
+        // Total lines: 2 id + 14 options + 1 uciok = 17
         Assert.Equal(17, outputs.Count);
+        
+        // Ensure no duplicates
+        Assert.Equal(outputs.Count, outputs.Distinct().Count());
     }
     
     [Fact]

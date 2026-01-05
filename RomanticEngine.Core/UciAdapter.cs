@@ -87,7 +87,6 @@ public class UciAdapter
     private void ParseSetOption(string[] tokens)
     {
         // setoption name <id> [value <x>]
-        // tokens: setoption, name, ..., value, ...
         int nameIndex = -1;
         int valueIndex = -1;
 
@@ -97,7 +96,7 @@ public class UciAdapter
             if (tokens[i] == "value") valueIndex = i;
         }
 
-        if (nameIndex == -1) return;
+        if (nameIndex == -1 || nameIndex + 1 >= tokens.Length) return;
 
         string name;
         string value = "";
@@ -105,19 +104,24 @@ public class UciAdapter
         if (valueIndex != -1 && valueIndex > nameIndex)
         {
             name = string.Join(" ", tokens.Skip(nameIndex + 1).Take(valueIndex - nameIndex - 1));
-            value = string.Join(" ", tokens.Skip(valueIndex + 1));
+            if (valueIndex + 1 < tokens.Length)
+            {
+                value = string.Join(" ", tokens.Skip(valueIndex + 1));
+            }
         }
         else
         {
             name = string.Join(" ", tokens.Skip(nameIndex + 1));
         }
 
-        _engine.SetOption(name, value);
+        _engine.SetOption(name.Trim(), value.Trim());
     }
 
     private void ParsePosition(string[] tokens)
     {
         // position [fen <fenstring> | startpos]  moves <move1> ....
+        if (tokens.Length < 2) return;
+
         int movesIndex = -1;
         for (int i = 1; i < tokens.Length; i++)
         {
@@ -137,12 +141,23 @@ public class UciAdapter
         }
         else if (tokens[1] == "fen")
         {
-            // Join tokens until movesIndex or end
+            if (tokens.Length < 3) return; // Need at least one fen field? Actually 6, but we'll join what's there.
             int end = (movesIndex == -1) ? tokens.Length : movesIndex;
-            fen = string.Join(" ", tokens.Skip(2).Take(end - 2));
+            if (end > 2)
+            {
+                fen = string.Join(" ", tokens.Skip(2).Take(end - 2));
+            }
+            else
+            {
+                return; // position fen moves ... with no fen? invalid.
+            }
+        }
+        else
+        {
+            return; // unknown position type
         }
 
-        if (movesIndex != -1)
+        if (movesIndex != -1 && movesIndex + 1 < tokens.Length)
         {
             moves = tokens.Skip(movesIndex + 1).ToArray();
         }
@@ -155,19 +170,20 @@ public class UciAdapter
         var limits = new SearchLimits();
         for (int i = 1; i < tokens.Length; i++)
         {
-            switch (tokens[i])
+            var token = tokens[i].ToLowerInvariant();
+            switch (token)
             {
                 case "infinite": limits.Infinite = true; break;
                 case "ponder": limits.Ponder = true; break;
-                case "wtime": limits.WhiteTime = int.Parse(tokens[++i]); break;
-                case "btime": limits.BlackTime = int.Parse(tokens[++i]); break;
-                case "winc": limits.WhiteIncrement = int.Parse(tokens[++i]); break;
-                case "binc": limits.BlackIncrement = int.Parse(tokens[++i]); break;
-                case "movestogo": limits.MovesToGo = int.Parse(tokens[++i]); break;
-                case "depth": limits.Depth = int.Parse(tokens[++i]); break;
-                case "nodes": limits.Nodes = long.Parse(tokens[++i]); break;
-                case "movetime": limits.MoveTime = int.Parse(tokens[++i]); break;
-                case "mate": limits.Mate = int.Parse(tokens[++i]); break;
+                case "wtime": if (++i < tokens.Length && int.TryParse(tokens[i], out var wt)) limits.WhiteTime = wt; break;
+                case "btime": if (++i < tokens.Length && int.TryParse(tokens[i], out var bt)) limits.BlackTime = bt; break;
+                case "winc": if (++i < tokens.Length && int.TryParse(tokens[i], out var wi)) limits.WhiteIncrement = wi; break;
+                case "binc": if (++i < tokens.Length && int.TryParse(tokens[i], out var bi)) limits.BlackIncrement = bi; break;
+                case "movestogo": if (++i < tokens.Length && int.TryParse(tokens[i], out var mtg)) limits.MovesToGo = mtg; break;
+                case "depth": if (++i < tokens.Length && int.TryParse(tokens[i], out var d)) limits.Depth = d; break;
+                case "nodes": if (++i < tokens.Length && long.TryParse(tokens[i], out var n)) limits.Nodes = n; break;
+                case "movetime": if (++i < tokens.Length && int.TryParse(tokens[i], out var mt)) limits.MoveTime = mt; break;
+                case "mate": if (++i < tokens.Length && int.TryParse(tokens[i], out var m)) limits.Mate = m; break;
             }
         }
         _engine.Go(limits);

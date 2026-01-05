@@ -3,10 +3,10 @@
     - [x] Ensure references and dependencies are consistent and pinned <!-- id: 2 -->
     - [x] Enable consistent compiler settings (nullable, warnings, analyzers) across projects <!-- id: 3 -->
     - [x] Unit tests: build + smoke test that engine starts and can be constructed <!-- id: 4 -->
-- [ ] Spec Alignment and Acceptance Criteria <!-- id: 5 -->
-    - [ ] Convert UCI spec + internal requirements into a concrete acceptance checklist <!-- id: 6 -->
-    - [ ] Define protocol behavior for malformed/unknown commands (operator-friendly defaults) <!-- id: 7 -->
-    - [ ] Unit tests: golden output for `uci` handshake (id/author/options/uciok) <!-- id: 8 -->
+- [x] Spec Alignment and Acceptance Criteria <!-- id: 5 -->
+    - [x] Convert UCI spec + internal requirements into a concrete acceptance checklist <!-- id: 6 -->
+    - [x] Define protocol behavior for malformed/unknown commands (operator-friendly defaults) <!-- id: 7 -->
+    - [x] Unit tests: golden output for `uci` handshake (id/author/options/uciok) <!-- id: 8 -->
 - [ ] Move/State Management Safety (MakeMove/TakeMove) <!-- id: 9 -->
     - [ ] Introduce a single “state stack owner” abstraction for positions (e.g., PositionDriver) <!-- id: 10 -->
     - [ ] Refactor search recursion to use the state stack abstraction exclusively <!-- id: 11 -->
