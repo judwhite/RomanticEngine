@@ -1,13 +1,10 @@
-using System;
-using System.IO;
-
 namespace RomanticEngine.Core;
 
 public sealed class UciLogger : IDisposable
 {
     private string? _filePath;
     private StreamWriter? _writer;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     public void SetLogFile(string? path, Action<string>? onInfo = null)
     {

@@ -1,5 +1,3 @@
-using System;
-
 namespace RomanticEngine.Core;
 
 public interface ISystemInfo

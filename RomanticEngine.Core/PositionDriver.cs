@@ -1,18 +1,16 @@
 using Rudzoft.ChessLib;
 using Rudzoft.ChessLib.Types;
-using System.Diagnostics;
 
 namespace RomanticEngine.Core;
 
 /// <summary>
 /// Handles state-safe move application and reversal using a preallocated state stack.
 /// </summary>
-public class PositionDriver : IDisposable
+public sealed class PositionDriver : IDisposable
 {
     private readonly IGame _game;
     private readonly IPosition _pos;
     private readonly State[] _states;
-    private int _ply;
 
     public PositionDriver(IGame game, int maxPly = 256)
     {
@@ -23,14 +21,14 @@ public class PositionDriver : IDisposable
         {
             _states[i] = new State();
         }
-        _ply = 0;
+        Ply = 0;
     }
 
-    public int Ply => _ply;
+    public int Ply { get; private set; }
 
     public void SetPosition(string fen)
     {
-        _ply = 0;
+        Ply = 0;
         if (fen == "startpos")
             _game.NewGame();
         else
@@ -43,8 +41,8 @@ public class PositionDriver : IDisposable
         var beforeKey = _pos.State.Key;
 #endif
 
-        _pos.MakeMove(move, _states[_ply + 1]);
-        _ply++;
+        _pos.MakeMove(move, _states[Ply + 1]);
+        Ply++;
 
 #if DEBUG
         return new MoveScope(this, move, beforeKey);
@@ -55,14 +53,14 @@ public class PositionDriver : IDisposable
 
     public void PushPermanent(Move move)
     {
-        _pos.MakeMove(move, _states[_ply + 1]);
-        _ply++;
+        _pos.MakeMove(move, _states[Ply + 1]);
+        Ply++;
     }
 
     private void Pop(Move move)
     {
         _pos.TakeMove(move);
-        _ply--;
+        Ply--;
     }
 
     public void Dispose()
@@ -70,7 +68,7 @@ public class PositionDriver : IDisposable
         // No-op for now, but part of IDisposable pattern for Scope
     }
 
-    public struct MoveScope : IDisposable
+    public readonly struct MoveScope : IDisposable
     {
         private readonly PositionDriver _driver;
         private readonly Move _move;
@@ -99,7 +97,7 @@ public class PositionDriver : IDisposable
 #if DEBUG
             if (_driver._pos.State.Key != _expectedKey)
             {
-                throw new InvalidOperationException($"State corruption detected at ply {_driver._ply + 1}. Expected key {_expectedKey}, but got {_driver._pos.State.Key}.");
+                throw new InvalidOperationException($"State corruption detected at ply {_driver.Ply + 1}. Expected key {_expectedKey}, but got {_driver._pos.State.Key}.");
             }
 #endif
         }

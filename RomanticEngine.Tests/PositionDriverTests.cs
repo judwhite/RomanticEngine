@@ -1,11 +1,6 @@
-using Rudzoft.ChessLib;
 using Rudzoft.ChessLib.Factories;
-using Rudzoft.ChessLib.Types;
 using Rudzoft.ChessLib.MoveGeneration;
 using RomanticEngine.Core;
-using Xunit;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace RomanticEngine.Tests;
 
@@ -17,23 +12,23 @@ public class PositionDriverTests
         var game = GameFactory.Create();
         var driver = new PositionDriver(game);
         driver.SetPosition("startpos");
-        
+
         var initialKey = game.Pos.State.Key;
-        
+
         var moves = game.Pos.GenerateMoves();
         foreach (var ext in moves)
         {
             var m = ext.Move;
-            using (var scope = driver.Push(m))
+            using (var _ = driver.Push(m))
             {
                 Assert.NotEqual(initialKey, game.Pos.State.Key);
-                
+
                 // Recurse one level
                 var moves2 = game.Pos.GenerateMoves();
                 if (moves2.Length > 0)
                 {
                     var m2 = moves2[0].Move;
-                    using (var scope2 = driver.Push(m2))
+                    using (var __ = driver.Push(m2))
                     {
                          // depth 2
                     }
@@ -59,7 +54,7 @@ public class PositionDriverTests
             var driver = new PositionDriver(game);
             driver.SetPosition(fen);
             var initialKey = game.Pos.State.Key;
-            
+
             var moves = game.Pos.GenerateMoves();
             foreach (var ext in moves)
             {
@@ -79,33 +74,33 @@ public class PositionDriverTests
         var game = GameFactory.Create();
         var driver = new PositionDriver(game);
         driver.SetPosition("startpos");
-        
+
         var random = new System.Random(42);
-        
+
         for (int i = 0; i < 20; i++)
         {
             var initialKey = game.Pos.State.Key;
             var moves = game.Pos.GenerateMoves();
             if (moves.Length == 0) break;
-            
+
             var m = moves[random.Next(moves.Length)].Move;
-            
-            using (var scope = driver.Push(m))
+
+            using (var _ = driver.Push(m))
             {
                 // depth 1
                 var moves2 = game.Pos.GenerateMoves();
                 if (moves2.Length > 0)
                 {
                     var m2 = moves2[random.Next(moves2.Length)].Move;
-                    using (var scope2 = driver.Push(m2))
+                    using (var __ = driver.Push(m2))
                     {
                         // depth 2
                     }
                 }
             }
-            
+
             Assert.Equal(initialKey, game.Pos.State.Key);
-            
+
             // Apply one permanently to move forward
             driver.PushPermanent(m);
         }

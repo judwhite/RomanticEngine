@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-
 namespace RomanticEngine.Core;
 
 public class UciAdapter
@@ -24,12 +21,6 @@ public class UciAdapter
         _outputWriter(message);
     }
 
-    public void Loop()
-    {
-        // For scenarios where UciAdapter drives the loop from a reader?
-        // Or just expose ProcessCommand.
-    }
-
     public void ReceiveCommand(string command)
     {
         if (string.IsNullOrWhiteSpace(command)) return;
@@ -47,8 +38,9 @@ public class UciAdapter
                     SendOutput("id author Jud White");
                     foreach (var opt in _engine.Options)
                     {
-                       SendOutput(opt.ToString()); 
+                        SendOutput(opt.ToString());
                     }
+
                     SendOutput("uciok");
                     break;
 
@@ -149,14 +141,14 @@ public class UciAdapter
         }
         else if (tokens[1] == "fen")
         {
-            // FEN requires exactly 6 fields: 
+            // FEN requires exactly 6 fields:
             // 1. Piece placement
             // 2. Side to move
             // 3. Castling ability
             // 4. En passant square
             // 5. Halfmove clock
             // 6. Fullmove counter
-            
+
             int fenFieldsCount = 6;
             int fenStartIndex = 2;
             int end = (movesIndex == -1) ? tokens.Length : movesIndex;
@@ -192,15 +184,33 @@ public class UciAdapter
             {
                 case "infinite": limits.Infinite = true; break;
                 case "ponder": limits.Ponder = true; break;
-                case "wtime": if (++i < tokens.Length && int.TryParse(tokens[i], out var wt)) limits.WhiteTime = wt; break;
-                case "btime": if (++i < tokens.Length && int.TryParse(tokens[i], out var bt)) limits.BlackTime = bt; break;
-                case "winc": if (++i < tokens.Length && int.TryParse(tokens[i], out var wi)) limits.WhiteIncrement = wi; break;
-                case "binc": if (++i < tokens.Length && int.TryParse(tokens[i], out var bi)) limits.BlackIncrement = bi; break;
-                case "movestogo": if (++i < tokens.Length && int.TryParse(tokens[i], out var mtg)) limits.MovesToGo = mtg; break;
-                case "depth": if (++i < tokens.Length && int.TryParse(tokens[i], out var d)) limits.Depth = d; break;
-                case "nodes": if (++i < tokens.Length && long.TryParse(tokens[i], out var n)) limits.Nodes = n; break;
-                case "movetime": if (++i < tokens.Length && int.TryParse(tokens[i], out var mt)) limits.MoveTime = mt; break;
-                case "mate": if (++i < tokens.Length && int.TryParse(tokens[i], out var mat)) limits.Mate = mat; break;
+                case "wtime":
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var wt)) limits.WhiteTime = wt;
+                    break;
+                case "btime":
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var bt)) limits.BlackTime = bt;
+                    break;
+                case "winc":
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var wi)) limits.WhiteIncrement = wi;
+                    break;
+                case "binc":
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var bi)) limits.BlackIncrement = bi;
+                    break;
+                case "movestogo":
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var mtg)) limits.MovesToGo = mtg;
+                    break;
+                case "depth":
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var d)) limits.Depth = d;
+                    break;
+                case "nodes":
+                    if (++i < tokens.Length && long.TryParse(tokens[i], out var n)) limits.Nodes = n;
+                    break;
+                case "movetime":
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var mt)) limits.MoveTime = mt;
+                    break;
+                case "mate":
+                    if (++i < tokens.Length && int.TryParse(tokens[i], out var mat)) limits.Mate = mat;
+                    break;
                 case "searchmoves":
                     // Consume remainder
                     if (i + 1 < tokens.Length)
@@ -208,9 +218,11 @@ public class UciAdapter
                         limits.SearchMoves = tokens.Skip(i + 1).ToArray();
                         i = tokens.Length; // End loop
                     }
+
                     break;
             }
         }
+
         _engine.Go(limits);
     }
 }

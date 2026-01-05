@@ -1,25 +1,20 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using RomanticEngine.Core;
 
 namespace RomanticEngine.Tests;
 
-public class UciHarness : IDisposable
+public sealed class UciHarness : IDisposable
 {
     private readonly Engine _engine;
     private readonly UciAdapter _adapter;
     private readonly ConcurrentQueue<string> _outputs = new();
-    private readonly List<string> _allHistory = new();
+    private readonly List<string> _allHistory = [];
     private readonly AutoResetEvent _outputEvent = new(false);
 
     public UciHarness()
     {
         _engine = new Engine(new FakeSystemInfo());
-        _adapter = new UciAdapter(_engine, s => 
+        _adapter = new UciAdapter(_engine, s =>
         {
             _outputs.Enqueue(s);
             lock (_allHistory) _allHistory.Add(s);
@@ -27,7 +22,13 @@ public class UciHarness : IDisposable
         });
     }
 
-    public IReadOnlyList<string> AllHistory { get { lock (_allHistory) return _allHistory.ToList(); } }
+    public IReadOnlyList<string> AllHistory
+    {
+        get
+        {
+            lock (_allHistory) return _allHistory.ToList();
+        }
+    }
 
     public void Send(string command) => _adapter.ReceiveCommand(command);
 
@@ -45,6 +46,7 @@ public class UciHarness : IDisposable
                 _outputEvent.WaitOne(100);
             }
         }
+
         return null;
     }
 

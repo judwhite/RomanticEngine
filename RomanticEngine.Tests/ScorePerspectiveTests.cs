@@ -1,8 +1,3 @@
-using System;
-using System.Linq;
-using Xunit;
-using RomanticEngine.Core;
-
 namespace RomanticEngine.Tests;
 
 public class ScorePerspectiveTests
@@ -11,20 +6,20 @@ public class ScorePerspectiveTests
     public void Test_Score_Perspective_Winning_Black()
     {
         // Black to move, winning (up a Knight after Bxg4 Nxd5 Nxd5). Score should be positive.
-        string fen = "rnb1kb1r/ppp1pppp/5n2/3q4/6Q1/2N5/PPPP1PPP/R1B1KBNR b KQkq - 3 4";
-        
+        const string fen = "rnb1kb1r/ppp1pppp/5n2/3q4/6Q1/2N5/PPPP1PPP/R1B1KBNR b KQkq - 3 4";
+
         using var harness = new UciHarness();
         harness.Send($"position fen {fen}");
-        harness.Send("go depth 4"); 
+        harness.Send("go depth 4");
 
         harness.WaitForLine(s => s.StartsWith("bestmove"));
-        
+
         var infos = harness.AllHistory
             .Where(s => s.StartsWith("info depth") && s.Contains("score cp") && ParseDepth(s) >= 2)
             .ToList();
 
         Assert.NotEmpty(infos);
-        
+
         foreach (var info in infos)
         {
             int cp = ParseCp(info);
@@ -37,7 +32,7 @@ public class ScorePerspectiveTests
     public void Test_Score_Perspective_Losing_Black()
     {
         // Black to move, losing (down a Queen). Score should be negative.
-        string fen = "rnb1kb1r/ppp1pppp/5n2/3N4/8/8/PPPP1PPP/R1BQKBNR b KQkq - 0 4";
+        const string fen = "rnb1kb1r/ppp1pppp/5n2/3N4/8/8/PPPP1PPP/R1BQKBNR b KQkq - 0 4";
 
         using var harness = new UciHarness();
         harness.Send($"position fen {fen}");
@@ -59,7 +54,7 @@ public class ScorePerspectiveTests
         }
     }
 
-    private int ParseDepth(string info)
+    private static int ParseDepth(string info)
     {
         // Format: ... depth 4 ...
         var parts = info.Split(' ');
@@ -71,7 +66,7 @@ public class ScorePerspectiveTests
         throw new Exception($"Could not parse depth from {info}");
     }
 
-    private int ParseCp(string info)
+    private static int ParseCp(string info)
     {
         // Format: ... score cp 123 ...
         var parts = info.Split(' ');

@@ -1,9 +1,6 @@
-using System.Threading;
-using Xunit;
 using RomanticEngine.Core;
 using Rudzoft.ChessLib;
 using Rudzoft.ChessLib.Types;
-using Rudzoft.ChessLib.Enums;
 using Rudzoft.ChessLib.MoveGeneration;
 
 namespace RomanticEngine.Tests;
@@ -22,15 +19,15 @@ public class EngineTests
     public void Test_SetOption_UpdatesConfiguration()
     {
         var engine = new Engine();
-        
+
         // Test toggles
         engine.SetOption("EnableKingSafety", "false");
         Assert.False(engine.Config.Evaluation.EnableKingSafety);
-        
+
         engine.SetOption("EnableKingSafety", "true");
         Assert.True(engine.Config.Evaluation.EnableKingSafety);
-        
-         // Test weights
+
+        // Test weights
         engine.SetOption("MaterialWeight", "50");
         Assert.Equal(50, engine.Config.Evaluation.MaterialWeight);
     }
@@ -39,7 +36,7 @@ public class EngineTests
     public void Test_SetOption_StandardOptions()
     {
         var engine = new Engine();
-        
+
         // Threads
         engine.SetOption("Threads", "4");
         Assert.Equal(4, engine.Config.Standard.Threads);
@@ -52,7 +49,7 @@ public class EngineTests
         var path = "/path/to/tablebases";
         engine.SetOption("SyzygyPath", path);
         Assert.Equal(path, engine.Config.Standard.SyzygyPath);
-        
+
         // Ponder
         engine.SetOption("Ponder", "true");
         Assert.True(engine.Config.Standard.Ponder);
@@ -65,12 +62,13 @@ public class EngineTests
         var bestMoveEvent = new ManualResetEvent(false);
         string bestMoveString = "";
 
-        engine.OnBestMove += (move) => {
+        engine.OnBestMove += move =>
+        {
             bestMoveString = move;
             bestMoveEvent.Set();
         };
 
-        engine.SetPosition("startpos", null);
+        engine.SetPosition("startpos");
         engine.Go(new SearchLimits { Depth = 1 });
 
         Assert.True(bestMoveEvent.WaitOne(5000));
@@ -83,68 +81,121 @@ public class EngineTests
     {
         var engine = new Engine();
         var bestMoveEvent = new ManualResetEvent(false);
-        
-        engine.OnBestMove += (move) => {
+        string? bestMove = null;
+
+        engine.OnBestMove += move =>
+        {
+            bestMove = move;
             bestMoveEvent.Set();
         };
 
-        // Simple mate in 1 position or generic position
-        engine.SetPosition("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", null); 
+        // Simple start position FEN (equivalent to startpos)
+        engine.SetPosition("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         engine.Go(new SearchLimits { Depth = 1 });
 
         Assert.True(bestMoveEvent.WaitOne(5000));
+        Assert.False(string.IsNullOrWhiteSpace(bestMove));
     }
-    
+
     [Fact]
-    public void Test_Stop_DoesNotThrow()
+    public void Test_Stop_EmitsBestMove_AndDoesNotReportException()
     {
         var engine = new Engine();
-        engine.SetPosition("startpos", null);
-        
-        // Start a longer search
-        engine.Go(new SearchLimits { Depth = 20 }); 
-        
-        // Stop immediately
+        var bestMoveEvent = new ManualResetEvent(false);
+        string? bestMove = null;
+        var exceptionInfos = new List<string>();
+
+        engine.OnBestMove += move =>
+        {
+            bestMove = move;
+            bestMoveEvent.Set();
+        };
+        engine.OnInfo += info =>
+        {
+            if (info.Contains("Exception"))
+            {
+                lock (exceptionInfos) exceptionInfos.Add(info);
+            }
+        };
+
+        engine.SetPosition("startpos");
+
+        // Start a longer search, then stop immediately.
+        engine.Go(new SearchLimits { Depth = 20 });
         engine.Stop();
-        
-        // Should not throw and eventually produce bestmove (though currently Go might be blocking or async depending on impl)
-        // Engine.Go implementation launches Task.Run, so Stop should signal it.
-        // We verify no exception propagates here.
+
+        Assert.True(bestMoveEvent.WaitOne(5000), "Expected a bestmove after stop.");
+        Assert.False(string.IsNullOrWhiteSpace(bestMove));
+
+        lock (exceptionInfos)
+        {
+            Assert.Empty(exceptionInfos);
+        }
     }
-    
+
     [Fact]
-    public void Test_PonderHit_DoesNotThrow()
+    public void Test_PonderHit_SuppressesBestMoveUntilHit_ThenStopEmits()
     {
         var engine = new Engine();
+        var sawInfoEvent = new ManualResetEvent(false);
+        var bestMoveEvent = new ManualResetEvent(false);
+        string? bestMove = null;
+
+        engine.OnInfo += _ => sawInfoEvent.Set();
+        engine.OnBestMove += move =>
+        {
+            bestMove = move;
+            bestMoveEvent.Set();
+        };
+
+        engine.SetPosition("startpos");
+        engine.Go(new SearchLimits { Depth = 10, Ponder = true });
+
+        Assert.True(sawInfoEvent.WaitOne(5000), "Expected at least one info line during ponder search.");
+
+        // While pondering, bestmove should not be emitted.
+        Assert.False(bestMoveEvent.WaitOne(200), "bestmove should be suppressed during ponder.");
+
         engine.PonderHit();
-        // Should effectively do nothing or switch mode, but ensuring no crash.
+        engine.Stop();
+
+        Assert.True(bestMoveEvent.WaitOne(5000), "Expected a bestmove after ponderhit+stop.");
+        Assert.False(string.IsNullOrWhiteSpace(bestMove));
     }
-    
+
     [Fact]
-    public void Test_NewGame_Resets_DoesNotThrow()
+    public void Test_NewGame_AllowsSubsequentSearch()
     {
         var engine = new Engine();
+        var bestMoveEvent = new ManualResetEvent(false);
+
+        engine.OnBestMove += _ => bestMoveEvent.Set();
+
         engine.NewGame();
+        engine.SetPosition("startpos");
+        engine.Go(new SearchLimits { Depth = 1 });
+
+        Assert.True(bestMoveEvent.WaitOne(5000), "Expected bestmove after NewGame + SetPosition + Go.");
     }
-    
+
     [Fact]
     public void Test_Search_RespectsTimeLimit()
     {
         var engine = new Engine();
         var bestMoveEvent = new ManualResetEvent(false);
         var errors = new System.Text.StringBuilder();
-        
-        engine.OnBestMove += (m) => bestMoveEvent.Set();
-        engine.OnInfo += (info) => 
+
+        engine.OnBestMove += _ => bestMoveEvent.Set();
+        engine.OnInfo += info =>
         {
             if (info.Contains("Exception")) errors.AppendLine(info);
         };
-        
-        engine.SetPosition("startpos", null);
-        
+
+        engine.SetPosition("startpos");
+
         // Move time 100ms
         engine.Go(new SearchLimits { MoveTime = 100 });
-        
+
         // Wait 150ms
         bool signaled = bestMoveEvent.WaitOne(5000);
         Assert.True(signaled, $"Search timed out. Errors: {errors}");
@@ -157,13 +208,13 @@ public class EngineTests
         var bestMoveEvent = new ManualResetEvent(false);
         var errors = new System.Text.StringBuilder();
 
-        engine.OnBestMove += (m) => bestMoveEvent.Set();
-        engine.OnInfo += (info) => 
+        engine.OnBestMove += _ => bestMoveEvent.Set();
+        engine.OnInfo += info =>
         {
-             if (info.Contains("Exception")) errors.AppendLine(info);
+            if (info.Contains("Exception")) errors.AppendLine(info);
         };
 
-        engine.SetPosition("startpos", null);
+        engine.SetPosition("startpos");
         // movetime 500
         engine.Go(new SearchLimits { MoveTime = 500 });
 
@@ -172,7 +223,7 @@ public class EngineTests
         Assert.True(signaled, $"Search did not finish within 600ms (MoveTime 500). Errors: {errors}");
         Assert.True(errors.Length == 0, $"Search crashed with errors: {errors}");
     }
-    
+
     private class FakeSystemInfo : ISystemInfo
     {
         public int MaxThreads => 28;
@@ -186,13 +237,13 @@ public class EngineTests
         var engine = new Engine(si);
         var outputs = new List<string>();
         var adapter = new UciAdapter(engine, outputs.Add);
-        
+
         adapter.ReceiveCommand("uci");
-        
+
         // Assert exact strings and ordering
         Assert.Equal("id name RomanticEngine 1.0", outputs[0]);
         Assert.Equal("id author Jud White", outputs[1]);
-        
+
         // Verify all 14 options are present and correctly formatted
         // Standard Options
         Assert.Contains("option name Debug Log File type string default <empty>", outputs);
@@ -203,7 +254,7 @@ public class EngineTests
         Assert.Contains("option name MultiPV type spin default 1 min 1 max 256", outputs);
         Assert.Contains("option name Move Overhead type spin default 10 min 0 max 5000", outputs);
         Assert.Contains("option name SyzygyPath type string default <empty>", outputs);
-        
+
         // Custom Heuristics
         Assert.Contains("option name EnableMaterial type check default true", outputs);
         Assert.Contains("option name EnableRMobility type check default true", outputs);
@@ -211,41 +262,41 @@ public class EngineTests
         Assert.Contains("option name MaterialWeight type spin default 1 min 0 max 100", outputs);
         Assert.Contains("option name MobilityWeight type spin default 10 min 0 max 100", outputs);
         Assert.Contains("option name KingSafetyWeight type spin default 20 min 0 max 100", outputs);
-        
+
         // Check uciok is last
         Assert.Equal("uciok", outputs.Last());
-        
+
         // Total lines: 2 id + 14 options + 1 uciok = 17
         Assert.Equal(17, outputs.Count);
-        
+
         // Ensure no duplicates
         Assert.Equal(outputs.Count, outputs.Distinct().Count());
     }
-    
+
     [Fact]
     public void Test_Info_String_Correctness()
     {
         var engine = new Engine();
         var infoStrings = new List<string>();
         var completeEvent = new ManualResetEvent(false);
-        
-        engine.OnInfo += (info) => infoStrings.Add(info);
-        engine.OnBestMove += (m) => completeEvent.Set();
-        
-        engine.SetPosition("startpos", null);
+
+        engine.OnInfo += info => infoStrings.Add(info);
+        engine.OnBestMove += _ => completeEvent.Set();
+
+        engine.SetPosition("startpos");
         engine.Go(new SearchLimits { Depth = 4 }); // Enough to generate PVs
-        
+
         Assert.True(completeEvent.WaitOne(5000));
         Assert.NotEmpty(infoStrings);
-        
+
         long prevNodes = -1;
         long prevTime = -1;
         int prevMultiPv = 1; // Assuming default 1
-        
+
         foreach (var info in infoStrings)
         {
             if (info.Contains("string")) continue; // Skip info string ...
-            
+
             // Check required fields presence
             Assert.Contains("depth", info);
             Assert.Contains("score", info);
@@ -258,51 +309,56 @@ public class EngineTests
             Assert.Contains("multipv", info);
 
             var parts = info.Split(' ');
-            
+
             // Validate parsability and ranges
             for (int i = 0; i < parts.Length; i++)
             {
-                if (parts[i] == "score" && parts[i+1] == "cp")
+                if (parts[i] == "score" && parts[i + 1] == "cp")
                 {
-                    int cp = int.Parse(parts[i+2]);
+                    int cp = int.Parse(parts[i + 2]);
                     Assert.InRange(cp, -64000, 64000);
                 }
+
                 if (parts[i] == "nodes")
                 {
-                    long nodes = long.Parse(parts[i+1]);
+                    long nodes = long.Parse(parts[i + 1]);
                     Assert.True(nodes >= prevNodes, $"Nodes not monotonic: {nodes} < {prevNodes}");
                     prevNodes = nodes;
                 }
+
                 if (parts[i] == "time")
                 {
-                    long time = long.Parse(parts[i+1]);
+                    long time = long.Parse(parts[i + 1]);
                     Assert.True(time >= prevTime, "Time not monotonic");
                     prevTime = time;
                 }
+
                 if (parts[i] == "hashfull")
                 {
-                    int hf = int.Parse(parts[i+1]);
+                    int hf = int.Parse(parts[i + 1]);
                     Assert.InRange(hf, 0, 1000);
                 }
+
                 if (parts[i] == "nps")
                 {
-                    long nps = long.Parse(parts[i+1]);
+                    long nps = long.Parse(parts[i + 1]);
                     Assert.True(nps >= 0); // Can be 0 if time is 0
                 }
-                 if (parts[i] == "multipv")
+
+                if (parts[i] == "multipv")
                 {
-                    int mpv = int.Parse(parts[i+1]);
+                    int mpv = int.Parse(parts[i + 1]);
                     Assert.True(mpv >= prevMultiPv); // Should be consistent for single line mode
                 }
             }
-            
+
             // Verify PV legality
             int pvIndex = Array.IndexOf(parts, "pv");
             Assert.True(pvIndex != -1 && pvIndex < parts.Length - 1, "PV missing moves");
-            
+
             var game = Rudzoft.ChessLib.Factories.GameFactory.Create();
             game.NewGame();
-            
+
             for (int i = pvIndex + 1; i < parts.Length; i++)
             {
                 var moveStr = parts[i];
@@ -312,47 +368,47 @@ public class EngineTests
             }
         }
     }
-    
+
     [Fact]
     public void Test_BestMove_Ponder_Legality()
     {
         var engine = new Engine();
         var outputs = new List<string>();
         var adapter = new UciAdapter(engine, outputs.Add);
-        
+
         var completeEvent = new ManualResetEvent(false);
         engine.OnBestMove += _ => completeEvent.Set();
 
-        engine.SetPosition("startpos", null);
+        engine.SetPosition("startpos");
         adapter.ReceiveCommand("go depth 4");
-        
+
         Assert.True(completeEvent.WaitOne(5000));
         var bestMoveLine = outputs.LastOrDefault(s => s.StartsWith("bestmove"));
         Assert.NotNull(bestMoveLine);
         Assert.StartsWith("bestmove", bestMoveLine);
-        
+
         var parts = bestMoveLine.Split(' ');
         var bestMoveStr = parts[1];
-        
+
         // Check legality
         var game = Rudzoft.ChessLib.Factories.GameFactory.Create();
         game.NewGame();
-        
+
         var generatedMoves = game.Pos.GenerateMoves();
         var bestMove = generatedMoves.FirstOrDefault(m => m.Move.ToString() == bestMoveStr);
         if (bestMove.Equals(default(ExtMove)))
         {
-             var allMoves = string.Join(", ", generatedMoves.Select(m => m.Move.ToString()));
-             Assert.Fail($"Best move illegal: {bestMoveStr}. Generated: {allMoves}");
+            var allMoves = string.Join(", ", generatedMoves.Select(m => m.Move.ToString()));
+            Assert.Fail($"Best move illegal: {bestMoveStr}. Generated: {allMoves}");
         }
-        
+
         game.Pos.MakeMove(bestMove, new State());
-        
+
         if (parts.Length > 2 && parts[2] == "ponder")
         {
-             var ponderStr = parts[3];
-             var ponderMove = game.Pos.GenerateMoves().FirstOrDefault(m => m.Move.ToString() == ponderStr);
-             Assert.False(ponderMove.Equals(default(ExtMove)), $"Ponder move illegal: {ponderStr}");
+            var ponderStr = parts[3];
+            var ponderMove = game.Pos.GenerateMoves().FirstOrDefault(m => m.Move.ToString() == ponderStr);
+            Assert.False(ponderMove.Equals(default(ExtMove)), $"Ponder move illegal: {ponderStr}");
         }
     }
 }

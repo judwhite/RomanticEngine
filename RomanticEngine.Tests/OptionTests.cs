@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using RomanticEngine.Core;
-using Xunit;
 
 namespace RomanticEngine.Tests;
 
@@ -27,7 +23,7 @@ public class OptionTests
         // Verify exact strings for Threads and Hash using the fake limits
         Assert.Contains("option name Threads type spin default 1 min 1 max 28", outputs);
         Assert.Contains("option name Hash type spin default 16 min 1 max 120395", outputs);
-        
+
         // Verify button
         Assert.Contains("option name Clear Hash type button", outputs);
     }
@@ -67,5 +63,20 @@ public class OptionTests
         var engine = new Engine();
         engine.SetOption("hAsH", "64");
         Assert.Equal(64, engine.Config.Standard.Hash);
+    }
+
+    [Fact]
+    public void Test_SetOption_MultiPV_NotImplemented_ClampsToOne()
+    {
+        var si = new FakeSystemInfo();
+        var engine = new Engine(si);
+        var infos = new List<string>();
+        engine.OnInfo += infos.Add;
+
+        engine.SetOption("MultiPV", "3");
+
+        // If we tell the client "using 1 for MultiPV", then the effective stored value should match.
+        Assert.Contains(infos, s => s.Contains("MultiPV > 1 not implemented"));
+        Assert.Equal(1, engine.Config.Standard.MultiPV);
     }
 }

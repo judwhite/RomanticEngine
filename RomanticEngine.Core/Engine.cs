@@ -1,10 +1,6 @@
-using System;
-using System.Linq;
 using Rudzoft.ChessLib;
 using Rudzoft.ChessLib.Factories;
-using Rudzoft.ChessLib.Types;
-using Rudzoft.ChessLib.MoveGeneration; // Attempting to add this
-using Rudzoft.ChessLib.Enums; // For MoveGenerationType if needed
+using Rudzoft.ChessLib.MoveGeneration;
 
 namespace RomanticEngine.Core;
 
@@ -15,19 +11,18 @@ public class Engine : IEngine
 
     private readonly IGame _game;
     private readonly PositionDriver _driver;
-    
+
     private SearchSession? _currentSession;
     private long _nextSessionId = 1;
-    private readonly object _sessionLock = new();
+    private readonly Lock _sessionLock = new();
 
-    private readonly List<UciOption> _options = new();
+    private readonly List<UciOption> _options = [];
     public IReadOnlyList<UciOption> Options => _options;
 
     private readonly ISystemInfo _sysInfo;
-    private readonly EngineConfig _config = new();
     private readonly UciLogger _logger = new();
-    
-    public EngineConfig Config => _config;
+
+    public EngineConfig Config { get; } = new();
 
     public Engine(ISystemInfo? sysInfo = null)
     {
@@ -40,24 +35,83 @@ public class Engine : IEngine
 
     private void InitializeOptions()
     {
-        // Standard Options per UCI_PROTOCOL.md
-        _options.Add(new UciOption { Name = "Debug Log File", Type = UciOptionType.String, DefaultValue = "<empty>", OnChanged = val => { _config.Standard.DebugLogFile = val; _logger.SetLogFile(val, OnInfo); } });
-        _options.Add(new UciOption { Name = "Threads", Type = UciOptionType.Spin, DefaultValue = "1", Min = 1, Max = _sysInfo.MaxThreads, OnChanged = val => _config.Standard.Threads = int.Parse(val) });
-        _options.Add(new UciOption { Name = "Hash", Type = UciOptionType.Spin, DefaultValue = "16", Min = 1, Max = _sysInfo.MaxHashMb, OnChanged = val => { _config.Standard.Hash = int.Parse(val); } });
-        _options.Add(new UciOption { Name = "Clear Hash", Type = UciOptionType.Button, OnChanged = val => { OnInfo?.Invoke("string cleared hash"); } });
-        _options.Add(new UciOption { Name = "Ponder", Type = UciOptionType.Check, DefaultValue = "false", OnChanged = val => _config.Standard.Ponder = bool.Parse(val) });
-        _options.Add(new UciOption { Name = "MultiPV", Type = UciOptionType.Spin, DefaultValue = "1", Min = 1, Max = 256, OnChanged = val => _config.Standard.MultiPV = int.Parse(val) });
-        _options.Add(new UciOption { Name = "Move Overhead", Type = UciOptionType.Spin, DefaultValue = "10", Min = 0, Max = 5000, OnChanged = val => _config.Standard.MoveOverhead = int.Parse(val) });
-        _options.Add(new UciOption { Name = "SyzygyPath", Type = UciOptionType.String, DefaultValue = "<empty>", OnChanged = val => _config.Standard.SyzygyPath = val });
+        // Standard Options
+        _options.Add(new UciOption
+        {
+            Name = "Debug Log File", Type = UciOptionType.String, DefaultValue = "<empty>", OnChanged = val =>
+            {
+                Config.Standard.DebugLogFile = val;
+                _logger.SetLogFile(val, OnInfo);
+            }
+        });
+        _options.Add(new UciOption
+        {
+            Name = "Threads", Type = UciOptionType.Spin, DefaultValue = "1", Min = 1, Max = _sysInfo.MaxThreads,
+            OnChanged = val => Config.Standard.Threads = int.Parse(val)
+        });
+        _options.Add(new UciOption
+        {
+            Name = "Hash", Type = UciOptionType.Spin, DefaultValue = "16", Min = 1, Max = _sysInfo.MaxHashMb,
+            OnChanged = val => { Config.Standard.Hash = int.Parse(val); }
+        });
+        _options.Add(new UciOption
+        {
+            Name = "Clear Hash", Type = UciOptionType.Button,
+            OnChanged = _ => { OnInfo?.Invoke("string cleared hash"); }
+        });
+        _options.Add(new UciOption
+        {
+            Name = "Ponder", Type = UciOptionType.Check, DefaultValue = "false",
+            OnChanged = val => Config.Standard.Ponder = bool.Parse(val)
+        });
+        _options.Add(new UciOption
+        {
+            Name = "MultiPV", Type = UciOptionType.Spin, DefaultValue = "1", Min = 1, Max = 256,
+            OnChanged = val => Config.Standard.MultiPV = int.Parse(val)
+        });
+        _options.Add(new UciOption
+        {
+            Name = "Move Overhead", Type = UciOptionType.Spin, DefaultValue = "10", Min = 0, Max = 5000,
+            OnChanged = val => Config.Standard.MoveOverhead = int.Parse(val)
+        });
+        _options.Add(new UciOption
+        {
+            Name = "SyzygyPath", Type = UciOptionType.String, DefaultValue = "<empty>",
+            OnChanged = val => Config.Standard.SyzygyPath = val
+        });
 
         // Custom Heuristics
-        _options.Add(new UciOption { Name = "EnableMaterial", Type = UciOptionType.Check, DefaultValue = "true", OnChanged = val => _config.Evaluation.EnableMaterial = bool.Parse(val) });
-        _options.Add(new UciOption { Name = "EnableRMobility", Type = UciOptionType.Check, DefaultValue = "true", OnChanged = val => _config.Evaluation.EnableRMobility = bool.Parse(val) });
-        _options.Add(new UciOption { Name = "EnableKingSafety", Type = UciOptionType.Check, DefaultValue = "true", OnChanged = val => _config.Evaluation.EnableKingSafety = bool.Parse(val) });
+        _options.Add(new UciOption
+        {
+            Name = "EnableMaterial", Type = UciOptionType.Check, DefaultValue = "true",
+            OnChanged = val => Config.Evaluation.EnableMaterial = bool.Parse(val)
+        });
+        _options.Add(new UciOption
+        {
+            Name = "EnableRMobility", Type = UciOptionType.Check, DefaultValue = "true",
+            OnChanged = val => Config.Evaluation.EnableRMobility = bool.Parse(val)
+        });
+        _options.Add(new UciOption
+        {
+            Name = "EnableKingSafety", Type = UciOptionType.Check, DefaultValue = "true",
+            OnChanged = val => Config.Evaluation.EnableKingSafety = bool.Parse(val)
+        });
 
-        _options.Add(new UciOption { Name = "MaterialWeight", Type = UciOptionType.Spin, DefaultValue = "1", Min = 0, Max = 100, OnChanged = val => _config.Evaluation.MaterialWeight = int.Parse(val) });
-        _options.Add(new UciOption { Name = "MobilityWeight", Type = UciOptionType.Spin, DefaultValue = "10", Min = 0, Max = 100, OnChanged = val => _config.Evaluation.MobilityWeight = int.Parse(val) });
-        _options.Add(new UciOption { Name = "KingSafetyWeight", Type = UciOptionType.Spin, DefaultValue = "20", Min = 0, Max = 100, OnChanged = val => _config.Evaluation.KingSafetyWeight = int.Parse(val) });
+        _options.Add(new UciOption
+        {
+            Name = "MaterialWeight", Type = UciOptionType.Spin, DefaultValue = "1", Min = 0, Max = 100,
+            OnChanged = val => Config.Evaluation.MaterialWeight = int.Parse(val)
+        });
+        _options.Add(new UciOption
+        {
+            Name = "MobilityWeight", Type = UciOptionType.Spin, DefaultValue = "10", Min = 0, Max = 100,
+            OnChanged = val => Config.Evaluation.MobilityWeight = int.Parse(val)
+        });
+        _options.Add(new UciOption
+        {
+            Name = "KingSafetyWeight", Type = UciOptionType.Spin, DefaultValue = "20", Min = 0, Max = 100,
+            OnChanged = val => Config.Evaluation.KingSafetyWeight = int.Parse(val)
+        });
     }
 
     public void NewGame()
@@ -65,29 +119,30 @@ public class Engine : IEngine
         _game.NewGame();
     }
 
-    public void SetPosition(string fen, string[]? moves = null)
+    public void SetPosition(string fen)
     {
-        if (fen == "startpos")
-            _driver.SetPosition("startpos");
-        else
-            _driver.SetPosition(fen);
+        SetPosition(fen, null);
+    }
 
-        if (moves != null)
+    public void SetPosition(string fen, string[]? moves)
+    {
+        _driver.SetPosition(fen == "startpos" ? "startpos" : fen);
+
+        if (moves == null) return;
+
+        foreach (var moveStr in moves)
         {
-            foreach (var moveStr in moves)
-            {
-                var moveList = _game.Pos.GenerateMoves(); 
-                var move = moveList.FirstOrDefault(m => m.Move.ToString() == moveStr);
+            var moveList = _game.Pos.GenerateMoves();
+            var move = moveList.FirstOrDefault(m => m.Move.ToString() == moveStr);
 
-                if (!move.Equals(default(ExtMove)))
-                {
-                    _driver.PushPermanent(move.Move);
-                }
-                else
-                {
-                    OnInfo?.Invoke($"info string illegal move in history: {moveStr}");
-                    break;
-                }
+            if (!move.Equals(default))
+            {
+                _driver.PushPermanent(move.Move);
+            }
+            else
+            {
+                OnInfo?.Invoke($"info string illegal move in history: {moveStr}");
+                break;
             }
         }
     }
@@ -102,15 +157,17 @@ public class Engine : IEngine
             long sessionId = _nextSessionId++;
             // Capture FEN snapshot for isolation
             string fen = _game.Pos.GenerateFen().ToString();
-            
-            _currentSession = new SearchSession(sessionId, fen, _config, limits,
-                msg => {
+
+            _currentSession = new SearchSession(sessionId, fen, Config, limits,
+                msg =>
+                {
                     if (CheckSession(sessionId)) OnInfo?.Invoke(msg);
                 },
-                move => {
+                move =>
+                {
                     if (CheckSession(sessionId)) OnBestMove?.Invoke(move);
                 });
-            
+
             _currentSession.Start(limits);
         }
     }
@@ -159,11 +216,13 @@ public class Engine : IEngine
         // Validate Spin
         if (option.Type == UciOptionType.Spin)
         {
-            if (!int.TryParse(value, out var spinVal) || (option.Min.HasValue && spinVal < option.Min) || (option.Max.HasValue && spinVal > option.Max))
+            if (!int.TryParse(value, out var spinVal) || (option.Min.HasValue && spinVal < option.Min) ||
+                (option.Max.HasValue && spinVal > option.Max))
             {
                 OnInfo?.Invoke($"string invalid {option.Name} value: {value}");
                 return;
             }
+
             if (option.Name.Equals("MultiPV", StringComparison.OrdinalIgnoreCase) && spinVal > 1)
             {
                 OnInfo?.Invoke("string MultiPV > 1 not implemented; using 1");
@@ -173,7 +232,8 @@ public class Engine : IEngine
         // Validate Check
         if (option.Type == UciOptionType.Check)
         {
-            if (!value.Equals("true", StringComparison.OrdinalIgnoreCase) && !value.Equals("false", StringComparison.OrdinalIgnoreCase))
+            if (!value.Equals("true", StringComparison.OrdinalIgnoreCase) &&
+                !value.Equals("false", StringComparison.OrdinalIgnoreCase))
             {
                 OnInfo?.Invoke($"string invalid {option.Name} value: {value}");
                 return;
@@ -181,7 +241,7 @@ public class Engine : IEngine
         }
 
         option.CurrentValue = value;
-        try 
+        try
         {
             option.OnChanged?.Invoke(value);
         }
@@ -193,7 +253,7 @@ public class Engine : IEngine
 
     public void SetDebug(bool enabled)
     {
-        _config.Standard.DebugEnabled = enabled;
+        Config.Standard.DebugEnabled = enabled;
         OnInfo?.Invoke($"string debug {(enabled ? "enabled" : "disabled")}");
     }
 

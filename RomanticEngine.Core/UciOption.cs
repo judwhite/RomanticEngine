@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace RomanticEngine.Core;
 
 public enum UciOptionType
@@ -20,13 +17,13 @@ public class UciOption
     public string CurrentValue { get; set; } = "";
     public int? Min { get; set; }
     public int? Max { get; set; }
-    public List<string> Var { get; set; } = new();
+    public List<string> Var { get; set; } = [];
     public Action<string>? OnChanged { get; set; }
 
     public override string ToString()
     {
         string baseStr = $"option name {Name} type {Type.ToString().ToLower()}";
-        
+
         switch (Type)
         {
             case UciOptionType.Check:
@@ -35,7 +32,8 @@ public class UciOption
                 return $"{baseStr} default {DefaultValue} min {Min} max {Max}";
             case UciOptionType.Combo:
                 string vars = "";
-                foreach (var v in Var) vars += $" var {v}";
+                foreach (var v in Var)
+                    vars += $" var {v}";
                 return $"{baseStr} default {DefaultValue}{vars}";
             case UciOptionType.String:
                 return $"{baseStr} default {DefaultValue}";

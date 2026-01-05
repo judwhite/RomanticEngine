@@ -19,11 +19,11 @@ public class EngineConfig
     public class StandardConfig
     {
         public int Hash { get; set; } = 16;
-        public bool Ponder { get; set; } = false;
+        public bool Ponder { get; set; }
         public int MultiPV { get; set; } = 1;
         public string DebugLogFile { get; set; } = "";
         public int Threads { get; set; } = 1;
-        public bool DebugEnabled { get; set; } = false;
+        public bool DebugEnabled { get; set; }
         public int MoveOverhead { get; set; } = 10;
         public string SyzygyPath { get; set; } = "";
     }

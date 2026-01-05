@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace RomanticEngine.Core;
 
 public interface IEngine
@@ -11,7 +8,8 @@ public interface IEngine
     IReadOnlyList<UciOption> Options { get; }
 
     void NewGame();
-    void SetPosition(string fen, string[]? moves = null);
+    void SetPosition(string fen);
+    void SetPosition(string fen, string[]? moves);
     void Go(SearchLimits limits);
     void Stop();
     void PonderHit();

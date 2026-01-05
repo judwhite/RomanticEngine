@@ -1,24 +1,19 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using RomanticEngine.Core;
-using Xunit;
 
 namespace RomanticEngine.Tests;
 
-public class LoggingTests : IDisposable
+public sealed class LoggingTests : IDisposable
 {
-    private readonly string _testLogFile = "test_debug.log";
+    private const string TestLogFile = "test_debug.log";
 
     public LoggingTests()
     {
-        if (File.Exists(_testLogFile)) File.Delete(_testLogFile);
+        if (File.Exists(TestLogFile)) File.Delete(TestLogFile);
     }
 
     public void Dispose()
     {
-        if (File.Exists(_testLogFile)) File.Delete(_testLogFile);
+        if (File.Exists(TestLogFile)) File.Delete(TestLogFile);
     }
 
     [Fact]
@@ -46,25 +41,24 @@ public class LoggingTests : IDisposable
         var adapter = new UciAdapter(engine, _ => { });
 
         // Enable logging
-        engine.SetOption("Debug Log File", _testLogFile);
-        
+        engine.SetOption("Debug Log File", TestLogFile);
+
         adapter.ReceiveCommand("isready");
-        
+
         // Wait for flush (AutoFlush is true, but file system might be lazy)
-        // Actually StreamWriter with AutoFlush=true should be immediate.
-        
-        Assert.True(File.Exists(_testLogFile));
-        var content = File.ReadAllText(_testLogFile);
+
+        Assert.True(File.Exists(TestLogFile));
+        var content = File.ReadAllText(TestLogFile);
         Assert.Contains("[IN ] isready", content);
         Assert.Contains("[OUT] readyok", content);
 
         // Disable logging
         engine.SetOption("Debug Log File", "<empty>");
-        
-        var lengthBefore = new FileInfo(_testLogFile).Length;
+
+        var lengthBefore = new FileInfo(TestLogFile).Length;
         adapter.ReceiveCommand("ucinewgame");
-        var lengthAfter = new FileInfo(_testLogFile).Length;
-        
+        var lengthAfter = new FileInfo(TestLogFile).Length;
+
         Assert.Equal(lengthBefore, lengthAfter);
     }
 
@@ -77,10 +71,10 @@ public class LoggingTests : IDisposable
 
         // Feed garbage that might cause issues if not caught
         adapter.ReceiveCommand("position fen invalid fen string more tokens");
-        
+
         // Should have received some info string error
         Assert.Contains(outputs, s => s.Contains("info string"));
-        
+
         // Engine should still be alive
         outputs.Clear();
         adapter.ReceiveCommand("isready");

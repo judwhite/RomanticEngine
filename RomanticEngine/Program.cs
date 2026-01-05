@@ -1,11 +1,10 @@
-﻿using System;
-using RomanticEngine.Core;
+﻿using RomanticEngine.Core;
 
 namespace RomanticEngine;
 
-class Program
+internal static class Program
 {
-    static void Main(string[] args)
+    private static void Main()
     {
         var engine = new Engine();
         var uciLoop = new UciLoop(engine);

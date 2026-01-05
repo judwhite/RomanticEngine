@@ -1,25 +1,17 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using RomanticEngine.Core;
 
 namespace RomanticEngine;
 
-public class UciLoop
+public class UciLoop(IEngine engine)
 {
-    private readonly UciAdapter _adapter;
-
-    public UciLoop(IEngine engine)
-    {
-        _adapter = new UciAdapter(engine, Console.WriteLine);
-    }
+    private readonly UciAdapter _adapter = new(engine, Console.WriteLine);
 
     public void Run()
     {
-        string? line;
-        while ((line = Console.ReadLine()) != null)
+        while (Console.ReadLine() is { } line)
         {
-            if (line.Trim().ToLowerInvariant() == "quit") break;
+            if (line.Trim().Equals("quit", StringComparison.InvariantCultureIgnoreCase))
+                break;
             _adapter.ReceiveCommand(line);
         }
     }
