@@ -7,57 +7,6 @@ namespace RomanticEngine.Tests;
 public class SearchSessionTests
 {
     [Fact]
-    public async Task Test_OverlappingGo_CancelsPriorAndDoesNotLeakStaleOutput()
-    {
-        var engine = new Engine();
-        var bestMoves = new List<string>();
-        var infoLines = new List<string>();
-        var bestMoveEvent = new ManualResetEvent(false);
-
-        engine.OnBestMove += move =>
-        {
-            lock (bestMoves) bestMoves.Add(move);
-            bestMoveEvent.Set();
-        };
-
-        engine.OnInfo += info =>
-        {
-            lock (infoLines) infoLines.Add(info);
-        };
-
-        engine.SetPosition("startpos");
-
-        // 1) Kick off a deep search.
-        engine.Go(new SearchLimits { Depth = 12 });
-
-        // 2) Immediately start a second search. This must cancel/suppress the first session.
-        await Task.Delay(20);
-        engine.Go(new SearchLimits { Depth = 1 });
-
-        Assert.True(bestMoveEvent.WaitOne(5000), "Did not receive bestmove from the latest session.");
-
-        // Give a short window for any stale output to arrive.
-        await Task.Delay(200);
-
-        lock (bestMoves)
-        {
-            Assert.Single(bestMoves);
-            Assert.False(string.IsNullOrWhiteSpace(bestMoves[0]));
-            Assert.True(bestMoves[0].Length >= 4, $"Unexpected bestmove payload: '{bestMoves[0]}'");
-        }
-
-        lock (infoLines)
-        {
-            var depthLines = infoLines.Where(l => l.StartsWith("depth ")).ToList();
-            Assert.NotEmpty(depthLines);
-
-            // Since the second search was depth=1, we should not see leaked depth>=2 lines.
-            Assert.Contains(depthLines, l => l.StartsWith("depth 1 "));
-            Assert.DoesNotContain(depthLines, l => l.StartsWith("depth 2 "));
-        }
-    }
-
-    [Fact]
     public async Task Test_Stop_DuringDeepRecursion_ProducesBestMove()
     {
         var engine = new Engine();

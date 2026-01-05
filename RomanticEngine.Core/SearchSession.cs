@@ -159,9 +159,6 @@ public sealed class SearchSession : IDisposable
 
                 int score = AlphaBeta(depth, -MateValue, MateValue, out var currentBest, limits.SearchMoves);
 
-                if (ShouldStop())
-                    break;
-
                 _bestMoveSoFar = currentBest;
                 long currentTime = (long)((Stopwatch.GetTimestamp() - _startTime) * 1000.0 / Stopwatch.Frequency);
 
@@ -180,6 +177,11 @@ public sealed class SearchSession : IDisposable
                 {
                     break;
                 }
+            }
+
+            while (IsPondering() && !Token.IsCancellationRequested)
+            {
+                Thread.Sleep(5);
             }
 
             var moveStr = _bestMoveSoFar == Move.EmptyMove ? "0000" : _bestMoveSoFar.ToString();

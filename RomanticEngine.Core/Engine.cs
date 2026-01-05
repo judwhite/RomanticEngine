@@ -141,7 +141,7 @@ public class Engine : IEngine
             }
             else
             {
-                OnInfo?.Invoke($"info string illegal move in history: {moveStr}");
+                OnInfo?.Invoke($"string illegal move in history: {moveStr}");
                 break;
             }
         }
@@ -226,6 +226,7 @@ public class Engine : IEngine
             if (option.Name.Equals("MultiPV", StringComparison.OrdinalIgnoreCase) && spinVal > 1)
             {
                 OnInfo?.Invoke("string MultiPV > 1 not implemented; using 1");
+                value = "1";
             }
         }
 
