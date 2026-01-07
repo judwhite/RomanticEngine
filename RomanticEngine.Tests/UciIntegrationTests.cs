@@ -1,3 +1,4 @@
+using RomanticEngine.Core;
 using Rudzoft.ChessLib;
 using Rudzoft.ChessLib.Factories;
 using Rudzoft.ChessLib.MoveGeneration;
@@ -106,7 +107,7 @@ public class UciIntegrationTests
         foreach (var moveStr in pvMoves)
         {
             var moves = game.Pos.GenerateMoves();
-            var move = moves.FirstOrDefault(m => m.Move.ToString() == moveStr);
+            var move = moves.FirstOrDefault(m => m.Move.ToUci() == moveStr);
             Assert.False(move.Equals(default(ExtMove)), $"Illegal PV move {moveStr} in {infoWithPv}");
             game.Pos.MakeMove(move.Move, new State());
         }

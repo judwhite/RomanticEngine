@@ -6,6 +6,7 @@ namespace RomanticEngine.Core;
 
 public class Engine : IEngine
 {
+    public event Action<string>? OnScore;
     public event Action<string>? OnInfo;
     public event Action<string>? OnBestMove;
 
@@ -57,7 +58,7 @@ public class Engine : IEngine
         _options.Add(new UciOption
         {
             Name = "Clear Hash", Type = UciOptionType.Button,
-            OnChanged = _ => { OnInfo?.Invoke("string cleared hash"); }
+            OnChanged = _ => { OnInfo?.Invoke("cleared hash"); }
         });
         _options.Add(new UciOption
         {
@@ -88,8 +89,8 @@ public class Engine : IEngine
         });
         _options.Add(new UciOption
         {
-            Name = "EnableRMobility", Type = UciOptionType.Check, DefaultValue = "true",
-            OnChanged = val => Config.Evaluation.EnableRMobility = bool.Parse(val)
+            Name = "EnableMobility", Type = UciOptionType.Check, DefaultValue = "true",
+            OnChanged = val => Config.Evaluation.EnableMobility = bool.Parse(val)
         });
         _options.Add(new UciOption
         {
@@ -104,12 +105,12 @@ public class Engine : IEngine
         });
         _options.Add(new UciOption
         {
-            Name = "MobilityWeight", Type = UciOptionType.Spin, DefaultValue = "10", Min = 0, Max = 100,
+            Name = "MobilityWeight", Type = UciOptionType.Spin, DefaultValue = "2", Min = 0, Max = 100,
             OnChanged = val => Config.Evaluation.MobilityWeight = int.Parse(val)
         });
         _options.Add(new UciOption
         {
-            Name = "KingSafetyWeight", Type = UciOptionType.Spin, DefaultValue = "20", Min = 0, Max = 100,
+            Name = "KingSafetyWeight", Type = UciOptionType.Spin, DefaultValue = "5", Min = 0, Max = 100,
             OnChanged = val => Config.Evaluation.KingSafetyWeight = int.Parse(val)
         });
     }
@@ -121,19 +122,24 @@ public class Engine : IEngine
 
     public void SetPosition(string fen)
     {
-        SetPosition(fen, null);
+        SetPosition(fen, []);
     }
 
-    public void SetPosition(string fen, string[]? moves)
+    public void SetPosition(string fen, string[] moves)
     {
-        _driver.SetPosition(fen == "startpos" ? "startpos" : fen);
+        fen = fen.Trim();
 
-        if (moves == null) return;
+        _driver.SetPosition(fen.Equals("startpos", StringComparison.OrdinalIgnoreCase) ? "startpos" : fen);
 
-        foreach (var moveStr in moves)
+        for (int i = 0; i < moves.Length; i++)
         {
+            if (string.IsNullOrWhiteSpace(moves[i]))
+                continue;
+
+            var moveStr = moves[i].Trim().ToLowerInvariant();
+
             var moveList = _game.Pos.GenerateMoves();
-            var move = moveList.FirstOrDefault(m => m.Move.ToString() == moveStr);
+            var move = moveList.FirstOrDefault(m => m.Move.IsUciEqual(moveStr));
 
             if (!move.Equals(default))
             {
@@ -141,7 +147,11 @@ public class Engine : IEngine
             }
             else
             {
-                OnInfo?.Invoke($"string illegal move in history: {moveStr}");
+                OnInfo?.Invoke($"illegal move in history at ply {i + 1}: {moveStr}");
+                foreach (var m in moveList)
+                {
+                    OnInfo?.Invoke($"legal move: {m.Move.ToUci()}, is_castling: {m.Move.IsCastleMove()}, moveStr: {moveStr}, equal: {m.Move.IsUciEqual(moveStr)}");
+                }
                 break;
             }
         }
@@ -159,14 +169,22 @@ public class Engine : IEngine
             string fen = _game.Pos.GenerateFen().ToString();
 
             _currentSession = new SearchSession(sessionId, fen, Config, limits,
-                msg =>
+                score =>
                 {
-                    if (CheckSession(sessionId)) OnInfo?.Invoke(msg);
+                    if (CheckSession(sessionId))
+                        OnScore?.Invoke(score);
                 },
                 move =>
                 {
-                    if (CheckSession(sessionId)) OnBestMove?.Invoke(move);
-                });
+                    if (CheckSession(sessionId))
+                        OnBestMove?.Invoke(move);
+                },
+                msg =>
+                {
+                    if (CheckSession(sessionId))
+                        OnInfo?.Invoke(msg);
+                }
+            );
 
             _currentSession.Start(limits);
         }
@@ -199,7 +217,8 @@ public class Engine : IEngine
     public void SetOption(string name, string value)
     {
         var option = _options.FirstOrDefault(o => o.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        if (option == null) return;
+        if (option == null)
+            return;
 
         if (option.Type == UciOptionType.Button)
         {
@@ -216,16 +235,17 @@ public class Engine : IEngine
         // Validate Spin
         if (option.Type == UciOptionType.Spin)
         {
-            if (!int.TryParse(value, out var spinVal) || (option.Min.HasValue && spinVal < option.Min) ||
+            if (!int.TryParse(value, out var spinVal) ||
+                (option.Min.HasValue && spinVal < option.Min) ||
                 (option.Max.HasValue && spinVal > option.Max))
             {
-                OnInfo?.Invoke($"string invalid {option.Name} value: {value}");
+                OnInfo?.Invoke($"invalid {option.Name} value: {value}");
                 return;
             }
 
             if (option.Name.Equals("MultiPV", StringComparison.OrdinalIgnoreCase) && spinVal > 1)
             {
-                OnInfo?.Invoke("string MultiPV > 1 not implemented; using 1");
+                OnInfo?.Invoke("MultiPV > 1 not implemented; using 1");
                 value = "1";
             }
         }
@@ -236,7 +256,7 @@ public class Engine : IEngine
             if (!value.Equals("true", StringComparison.OrdinalIgnoreCase) &&
                 !value.Equals("false", StringComparison.OrdinalIgnoreCase))
             {
-                OnInfo?.Invoke($"string invalid {option.Name} value: {value}");
+                OnInfo?.Invoke($"invalid {option.Name} value: {value}");
                 return;
             }
         }
@@ -248,17 +268,17 @@ public class Engine : IEngine
         }
         catch (Exception ex)
         {
-            OnInfo?.Invoke($"string error applying option {option.Name}: {ex.Message}");
+            OnInfo?.Invoke($"error applying option {option.Name}: {ex.Message}");
         }
     }
 
     public void SetDebug(bool enabled)
     {
         Config.Standard.DebugEnabled = enabled;
-        OnInfo?.Invoke($"string debug {(enabled ? "enabled" : "disabled")}");
+        OnInfo?.Invoke($"debug {(enabled ? "enabled" : "disabled")}");
     }
 
-    public void Log(string direction, string message)
+    public void Log(LogDirection direction, string message)
     {
         _logger.Log(direction, message);
     }

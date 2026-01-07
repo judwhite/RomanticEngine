@@ -2,49 +2,59 @@ namespace RomanticEngine.Core;
 
 public sealed class UciLogger : IDisposable
 {
-    private string? _filePath;
+    private string _filePath = string.Empty;
     private StreamWriter? _writer;
     private readonly Lock _lock = new();
 
-    public void SetLogFile(string? path, Action<string>? onInfo = null)
+    public void SetLogFile(string path, Action<string>? onInfo)
     {
         lock (_lock)
         {
-            if (_filePath == path) return;
+            if (_filePath == path)
+                return;
 
-            _writer?.Dispose();
-            _writer = null;
+            TryDisposeWriter();
+
             _filePath = path;
 
-            if (string.IsNullOrWhiteSpace(_filePath)) return;
+            if (string.IsNullOrWhiteSpace(_filePath))
+                return;
 
             try
             {
-                var stream = new FileStream(_filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                var stream = new FileStream(_filePath, FileMode.Append, FileAccess.Write, FileShare.Read);
                 _writer = new StreamWriter(stream) { AutoFlush = true };
-                onInfo?.Invoke($"string logging to {_filePath}");
+                onInfo?.Invoke($"logging to {_filePath}");
             }
             catch (Exception ex)
             {
-                onInfo?.Invoke($"string unable to open debug log file: {ex.Message}");
-                _filePath = null;
+                onInfo?.Invoke($"unable to open debug log file {_filePath}: {ex.Message}");
+                TryDisposeWriter();
             }
         }
     }
 
-    public void Log(string direction, string message)
+    public void Log(LogDirection direction, string message)
     {
-        if (_writer == null) return;
-
         lock (_lock)
         {
+            if (_writer == null)
+                return;
+
             try
             {
-                _writer.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{direction}] {message}");
+                var dir = direction switch
+                {
+                    LogDirection.In => "IN ",
+                    LogDirection.Out => "OUT",
+                    _ => "???"
+                };
+
+                _writer.WriteLine($"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff} [{dir}] {message}");
             }
             catch
             {
-                // Suppress logging errors to avoid crashing search/main loop
+                TryDisposeWriter();
             }
         }
     }
@@ -53,7 +63,30 @@ public sealed class UciLogger : IDisposable
     {
         lock (_lock)
         {
-            _writer?.Dispose();
+            TryDisposeWriter();
         }
     }
+
+    private void TryDisposeWriter()
+    {
+        try
+        {
+            _filePath = string.Empty;
+            _writer?.Dispose();
+        }
+        catch
+        {
+            // Suppress errors to allow a new log file to be opened
+        }
+        finally
+        {
+            _writer = null;
+        }
+    }
+}
+
+public enum LogDirection
+{
+    In,
+    Out,
 }

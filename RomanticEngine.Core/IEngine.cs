@@ -2,6 +2,7 @@ namespace RomanticEngine.Core;
 
 public interface IEngine
 {
+    event Action<string> OnScore;
     event Action<string> OnInfo;
     event Action<string> OnBestMove;
 
@@ -9,11 +10,11 @@ public interface IEngine
 
     void NewGame();
     void SetPosition(string fen);
-    void SetPosition(string fen, string[]? moves);
+    void SetPosition(string fen, string[] moves);
     void Go(SearchLimits limits);
     void Stop();
     void PonderHit();
     void SetOption(string name, string value);
     void SetDebug(bool enabled);
-    void Log(string direction, string message);
+    void Log(LogDirection direction, string message);
 }

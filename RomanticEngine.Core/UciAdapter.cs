@@ -15,13 +15,14 @@ public class UciAdapter
         _outputWriter = outputWriter;
 
         // Hook up engine events to output
-        _engine.OnInfo += msg => SendOutput($"info {msg}");
+        _engine.OnScore += msg => SendOutput($"info {msg}");
+        _engine.OnInfo += msg => SendOutput($"info string {msg}");
         _engine.OnBestMove += msg => SendOutput($"bestmove {msg}");
     }
 
     private void SendOutput(string message)
     {
-        _engine.Log("OUT", message);
+        _engine.Log(LogDirection.Out, message);
         _outputWriter(message);
     }
 
@@ -30,7 +31,7 @@ public class UciAdapter
         if (string.IsNullOrWhiteSpace(command))
             return;
 
-        _engine.Log("IN ", command);
+        _engine.Log(LogDirection.In, command);
 
         var tokens = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var cmd = tokens[0].ToLowerInvariant();
@@ -138,7 +139,7 @@ public class UciAdapter
         int movesIndex = Array.FindIndex(tokens, 1, t => t == "moves");
 
         string fen;
-        string[]? moves = null;
+        string[] moves = [];
 
         switch (tokens[1])
         {
@@ -155,7 +156,7 @@ public class UciAdapter
                 // 6. Fullmove counter
 
                 int fenFieldsCount = 6;
-                int fenStartIndex = 2;
+                const int fenStartIndex = 2;
                 int end = movesIndex == -1 ? tokens.Length : movesIndex;
 
                 if (end - fenStartIndex < fenFieldsCount)

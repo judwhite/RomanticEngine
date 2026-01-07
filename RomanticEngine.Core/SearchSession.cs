@@ -9,8 +9,9 @@ namespace RomanticEngine.Core;
 
 public sealed class SearchSession : IDisposable
 {
-    private readonly Action<string> _onInfo;
+    private readonly Action<string> _onScore;
     private readonly Action<string> _onBestMove;
+    private readonly Action<string> _onInfo;
     private readonly IGame _game;
     private readonly PositionDriver _driver;
     private readonly CancellationTokenSource _cts;
@@ -29,14 +30,16 @@ public sealed class SearchSession : IDisposable
         string fen,
         EngineConfig config,
         SearchLimits limits,
-        Action<string> onInfo,
-        Action<string> onBestMove)
+        Action<string> onScore,
+        Action<string> onBestMove,
+        Action<string> onInfo)
     {
         SessionId = sessionId;
-        _onInfo = onInfo;
-        _onBestMove = onBestMove;
         _config = config;
         _isPondering = limits.Ponder;
+        _onScore = onScore;
+        _onBestMove = onBestMove;
+        _onInfo = onInfo;
 
         _game = GameFactory.Create();
 
@@ -70,7 +73,7 @@ public sealed class SearchSession : IDisposable
         try
         {
             var worker = new InternalSearchWorker(_game, _driver, _config, () => _isPondering, _cts.Token);
-            worker.Start(limits, EmitInfo, EmitBestMove);
+            worker.Start(limits, EmitScore, EmitBestMove);
         }
         catch (OperationCanceledException)
         {
@@ -78,7 +81,7 @@ public sealed class SearchSession : IDisposable
         }
         catch (Exception ex)
         {
-            EmitInfo($"string Exception in search: {ex.Message}");
+            EmitInfo($"Exception in search: {ex.Message}");
             EmitBestMove("0000");
         }
         finally
@@ -86,6 +89,11 @@ public sealed class SearchSession : IDisposable
             // Defensive: guarantee exactly one bestmove eventually (unless still pondering).
             EmitBestMove("0000");
         }
+    }
+
+    private void EmitScore(string message)
+    {
+        _onScore.Invoke(message);
     }
 
     private void EmitInfo(string message)
@@ -212,9 +220,7 @@ public sealed class SearchSession : IDisposable
                 Thread.Sleep(5);
             }
 
-            var moveStr = _bestMoveSoFar != Move.EmptyMove ? _bestMoveSoFar.ToString() : "0000";
-
-            onBestMove.Invoke(moveStr);
+            onBestMove.Invoke(_bestMoveSoFar.ToUci());
         }
 
         private int AlphaBeta(int depth, int alpha, int beta, out Move bestMove)
@@ -272,7 +278,7 @@ public sealed class SearchSession : IDisposable
 
                 if (filterRoot)
                 {
-                    string uci = m.ToString();
+                    string uci = m.ToUci();
                     if (!_rootSearchMoveSet!.Contains(uci))
                         continue;
                 }
@@ -427,26 +433,39 @@ public sealed class SearchSession : IDisposable
 
         private int ScoreMoveForOrdering(Move m)
         {
-            // Very simple ordering: promotions > captures > quiet.
-            // This is intentionally conservative and cheap.
             var (from, to, type) = m;
 
             if (type == MoveTypes.Promotion)
                 return 1_000_000;
+
             if (type == MoveTypes.Enpassant)
                 return 900_000;
+
+            // Castling is usually good in the opening; make it come early among quiet moves.
             if (type == MoveTypes.Castling)
-                return 0;
+                return 50_000;
 
             var captured = game.Pos.GetPiece(to);
-            if (captured.Type() == PieceTypes.NoPieceType)
-                return 0;
+            if (captured.Type() != PieceTypes.NoPieceType)
+            {
+                int capturedVal = Evaluation.PieceValue(captured.Type());
+                var attacker = game.Pos.GetPiece(from);
+                int attackerVal = Evaluation.PieceValue(attacker.Type());
 
-            int capturedVal = Evaluation.PieceValue(captured.Type());
-            var attacker = game.Pos.GetPiece(from);
-            int attackerVal = Evaluation.PieceValue(attacker.Type());
+                // Keep captures ahead of quiet moves.
+                return 500_000 + capturedVal * 1000 - attackerVal;
+            }
 
-            return capturedVal * 1000 - attackerVal;
+            // Quiet move ordering: use PST delta as a cheap static heuristic.
+            var mover = game.Pos.GetPiece(from);
+            bool isWhite = mover.ColorOf().IsWhite;
+
+            int fromSq = from.AsInt();
+            int toSq = to.AsInt();
+
+            int pstDelta = Evaluation.PieceSquareDeltaOpening(mover.Type(), fromSq, toSq, isWhite);
+
+            return pstDelta;
         }
 
         private int ScoreNoisyMoveForOrdering(Move m)
@@ -481,7 +500,7 @@ public sealed class SearchSession : IDisposable
             {
                 if (i > 0)
                     sb.Append(' ');
-                sb.Append(_pvTable[0, i].ToString());
+                sb.Append(_pvTable[0, i].ToUci());
             }
 
             return sb.ToString();

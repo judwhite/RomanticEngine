@@ -8,12 +8,12 @@ public class EngineConfig
     public class EvaluationConfig
     {
         public bool EnableMaterial { get; set; } = true;
-        public bool EnableRMobility { get; set; } = true;
+        public bool EnableMobility { get; set; } = true;
         public bool EnableKingSafety { get; set; } = true;
 
         public int MaterialWeight { get; set; } = 1;
-        public int MobilityWeight { get; set; } = 10;
-        public int KingSafetyWeight { get; set; } = 20;
+        public int MobilityWeight { get; set; } = 2;
+        public int KingSafetyWeight { get; set; } = 5;
     }
 
     public class StandardConfig

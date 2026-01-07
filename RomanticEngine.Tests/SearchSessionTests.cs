@@ -11,10 +11,10 @@ public class SearchSessionTests
     {
         var engine = new Engine();
         string? bestMove = null;
-        var infoReceived = new TaskCompletionSource<bool>();
+        var scoreReceived = new TaskCompletionSource<bool>();
         var bestMoveReceived = new TaskCompletionSource<bool>();
 
-        engine.OnInfo += _ => infoReceived.TrySetResult(true);
+        engine.OnScore += _ => scoreReceived.TrySetResult(true);
         engine.OnBestMove += m =>
         {
             bestMove = m;
@@ -25,7 +25,7 @@ public class SearchSessionTests
         engine.Go(new SearchLimits { Depth = 20 });
 
         // Wait for search to actually be busy.
-        await infoReceived.Task;
+        await scoreReceived.Task;
 
         engine.Stop();
 
@@ -48,7 +48,8 @@ public class SearchSessionTests
         {
             if (info.Contains("Exception", StringComparison.OrdinalIgnoreCase))
             {
-                lock (exceptionInfos) exceptionInfos.Add(info);
+                lock (exceptionInfos)
+                    exceptionInfos.Add(info);
             }
         };
 
@@ -110,10 +111,10 @@ public class SearchSessionTests
     {
         var engine = new Engine();
         string? bestMove = null;
-        var infoReceived = new TaskCompletionSource<bool>();
+        var scoreReceived = new TaskCompletionSource<bool>();
         var bestMoveReceived = new TaskCompletionSource<bool>();
 
-        engine.OnInfo += _ => infoReceived.TrySetResult(true);
+        engine.OnScore += _ => scoreReceived.TrySetResult(true);
         engine.OnBestMove += m =>
         {
             bestMove = m;
@@ -124,7 +125,7 @@ public class SearchSessionTests
         engine.Go(new SearchLimits { Depth = 4, Ponder = true });
 
         // Wait for some info to be sure it's running
-        await infoReceived.Task;
+        await scoreReceived.Task;
 
         Assert.Null(bestMove); // Should not have sent bestmove while pondering
 
@@ -147,10 +148,11 @@ public class SearchSessionTests
         var depth1Info = new TaskCompletionSource<bool>();
         var bestMoveReceived = new TaskCompletionSource<string>();
 
-        engine.OnBestMove += m => bestMoveReceived.TrySetResult(m);
-        engine.OnInfo += info =>
+        engine.OnBestMove += msg => bestMoveReceived.TrySetResult(msg);
+        engine.OnScore += msg =>
         {
-            if (info.StartsWith("depth 1 ")) depth1Info.TrySetResult(true);
+            if (msg.StartsWith("depth 1 "))
+                depth1Info.TrySetResult(true);
         };
 
         engine.SetPosition("startpos");
@@ -166,34 +168,34 @@ public class SearchSessionTests
         engine.PonderHit();
         engine.Stop();
 
-        var bm = await bestMoveReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.False(string.IsNullOrWhiteSpace(bm));
-        Assert.True(bm.Length >= 4);
+        var bestMove = await bestMoveReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(string.IsNullOrWhiteSpace(bestMove));
+        Assert.True(bestMove.Length >= 4);
     }
 
     [Fact]
     public async Task Test_Search_Mate_Finding()
     {
         var engine = new Engine();
-        var infos = new List<string>();
+        var scores = new List<string>();
         var bestMoveReceived = new TaskCompletionSource<bool>();
 
         engine.OnBestMove += _ => bestMoveReceived.TrySetResult(true);
-        engine.OnInfo += info =>
+        engine.OnScore += msg =>
         {
-            lock (infos) infos.Add(info);
+            lock (scores)
+                scores.Add(msg);
         };
 
         // Scholar's Mate position - white to move, mate in 1 (Qxf7#)
-        // r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 5
         engine.SetPosition("r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 5");
         engine.Go(new SearchLimits { Depth = 4 });
 
         await bestMoveReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        lock (infos)
+        lock (scores)
         {
-            Assert.Contains(infos, s => s.Contains("score mate 1"));
+            Assert.Contains(scores, s => s.Contains("score mate 1"));
         }
     }
 
@@ -201,13 +203,14 @@ public class SearchSessionTests
     public async Task Test_Search_PV_Legality()
     {
         var engine = new Engine();
-        var infoLines = new List<string>();
+        var scoreLines = new List<string>();
         var bestMoveReceived = new TaskCompletionSource<bool>();
 
         engine.OnBestMove += _ => bestMoveReceived.TrySetResult(true);
-        engine.OnInfo += info =>
+        engine.OnScore += msg =>
         {
-            lock (infoLines) infoLines.Add(info);
+            lock (scoreLines)
+                scoreLines.Add(msg);
         };
 
         engine.SetPosition("startpos");
@@ -217,9 +220,9 @@ public class SearchSessionTests
 
         // Find deepest info line with pv
         string? pvLine;
-        lock (infoLines)
+        lock (scoreLines)
         {
-            pvLine = infoLines.LastOrDefault(s => s.Contains("pv "));
+            pvLine = scoreLines.LastOrDefault(s => s.Contains("pv "));
         }
 
         Assert.NotNull(pvLine);
@@ -237,7 +240,7 @@ public class SearchSessionTests
         foreach (var moveStr in pvMoves)
         {
             var moves = game.Pos.GenerateMoves();
-            var move = moves.FirstOrDefault(m => m.Move.ToString() == moveStr);
+            var move = moves.FirstOrDefault(m => m.Move.ToUci() == moveStr);
             Assert.False(move.Equals(default), $"Illegal PV move {moveStr} in {pvLine}");
             game.Pos.MakeMove(move.Move, new State());
         }

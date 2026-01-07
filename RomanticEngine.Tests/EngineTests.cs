@@ -1,6 +1,6 @@
+using System.Text;
 using RomanticEngine.Core;
 using Rudzoft.ChessLib;
-using Rudzoft.ChessLib.Types;
 using Rudzoft.ChessLib.MoveGeneration;
 
 namespace RomanticEngine.Tests;
@@ -114,7 +114,8 @@ public class EngineTests
         {
             if (info.Contains("Exception"))
             {
-                lock (exceptionInfos) exceptionInfos.Add(info);
+                lock (exceptionInfos)
+                    exceptionInfos.Add(info);
             }
         };
 
@@ -137,11 +138,11 @@ public class EngineTests
     public void Test_PonderHit_SuppressesBestMoveUntilHit_ThenStopEmits()
     {
         var engine = new Engine();
-        var sawInfoEvent = new ManualResetEvent(false);
+        var sawScoreEvent = new ManualResetEvent(false);
         var bestMoveEvent = new ManualResetEvent(false);
         string? bestMove = null;
 
-        engine.OnInfo += _ => sawInfoEvent.Set();
+        engine.OnScore += _ => sawScoreEvent.Set();
         engine.OnBestMove += move =>
         {
             bestMove = move;
@@ -149,9 +150,9 @@ public class EngineTests
         };
 
         engine.SetPosition("startpos");
-        engine.Go(new SearchLimits { Depth = 10, Ponder = true });
+        engine.Go(new SearchLimits { Depth = 4, Ponder = true });
 
-        Assert.True(sawInfoEvent.WaitOne(5000), "Expected at least one info line during ponder search.");
+        Assert.True(sawScoreEvent.WaitOne(5000), "Expected at least one info line during ponder search.");
 
         // While pondering, bestmove should not be emitted.
         Assert.False(bestMoveEvent.WaitOne(200), "bestmove should be suppressed during ponder.");
@@ -183,12 +184,13 @@ public class EngineTests
     {
         var engine = new Engine();
         var bestMoveEvent = new ManualResetEvent(false);
-        var errors = new System.Text.StringBuilder();
+        var errors = new StringBuilder();
 
         engine.OnBestMove += _ => bestMoveEvent.Set();
         engine.OnInfo += info =>
         {
-            if (info.Contains("Exception")) errors.AppendLine(info);
+            if (info.Contains("Exception"))
+                errors.AppendLine(info);
         };
 
         engine.SetPosition("startpos");
@@ -206,12 +208,13 @@ public class EngineTests
     {
         var engine = new Engine();
         var bestMoveEvent = new ManualResetEvent(false);
-        var errors = new System.Text.StringBuilder();
+        var errors = new StringBuilder();
 
         engine.OnBestMove += _ => bestMoveEvent.Set();
         engine.OnInfo += info =>
         {
-            if (info.Contains("Exception")) errors.AppendLine(info);
+            if (info.Contains("Exception"))
+                errors.AppendLine(info);
         };
 
         engine.SetPosition("startpos");
@@ -257,11 +260,11 @@ public class EngineTests
 
         // Custom Heuristics
         Assert.Contains("option name EnableMaterial type check default true", outputs);
-        Assert.Contains("option name EnableRMobility type check default true", outputs);
+        Assert.Contains("option name EnableMobility type check default true", outputs);
         Assert.Contains("option name EnableKingSafety type check default true", outputs);
         Assert.Contains("option name MaterialWeight type spin default 1 min 0 max 100", outputs);
-        Assert.Contains("option name MobilityWeight type spin default 10 min 0 max 100", outputs);
-        Assert.Contains("option name KingSafetyWeight type spin default 20 min 0 max 100", outputs);
+        Assert.Contains("option name MobilityWeight type spin default 2 min 0 max 100", outputs);
+        Assert.Contains("option name KingSafetyWeight type spin default 5 min 0 max 100", outputs);
 
         // Check uciok is last
         Assert.Equal("uciok", outputs.Last());
@@ -277,25 +280,26 @@ public class EngineTests
     public void Test_Info_String_Correctness()
     {
         var engine = new Engine();
-        var infoStrings = new List<string>();
+        var scoreStrings = new List<string>();
         var completeEvent = new ManualResetEvent(false);
 
-        engine.OnInfo += info => infoStrings.Add(info);
+        engine.OnScore += info => scoreStrings.Add(info);
         engine.OnBestMove += _ => completeEvent.Set();
 
         engine.SetPosition("startpos");
         engine.Go(new SearchLimits { Depth = 4 }); // Enough to generate PVs
 
         Assert.True(completeEvent.WaitOne(5000));
-        Assert.NotEmpty(infoStrings);
+        Assert.NotEmpty(scoreStrings);
 
         long prevNodes = -1;
         long prevTime = -1;
-        int prevMultiPv = 1; // Assuming default 1
+        const int prevMultiPv = 1; // default: 1
 
-        foreach (var info in infoStrings)
+        foreach (var info in scoreStrings)
         {
-            if (info.Contains("string")) continue; // Skip info string ...
+            if (info.Contains("string"))
+                continue; // Skip info string ...
 
             // Check required fields presence
             Assert.Contains("depth", info);
@@ -362,8 +366,8 @@ public class EngineTests
             for (int i = pvIndex + 1; i < parts.Length; i++)
             {
                 var moveStr = parts[i];
-                var move = game.Pos.GenerateMoves().FirstOrDefault(m => m.Move.ToString() == moveStr);
-                Assert.False(move.Equals(default(ExtMove)), $"Invalid PV move: {moveStr}");
+                var move = game.Pos.GenerateMoves().FirstOrDefault(m => m.Move.ToUci() == moveStr);
+                Assert.False(move.Equals(default), $"Invalid PV move: {moveStr}");
                 game.Pos.MakeMove(move, new State());
             }
         }
@@ -395,10 +399,10 @@ public class EngineTests
         game.NewGame();
 
         var generatedMoves = game.Pos.GenerateMoves();
-        var bestMove = generatedMoves.FirstOrDefault(m => m.Move.ToString() == bestMoveStr);
-        if (bestMove.Equals(default(ExtMove)))
+        var bestMove = generatedMoves.FirstOrDefault(m => m.Move.ToUci() == bestMoveStr);
+        if (bestMove.Equals(default))
         {
-            var allMoves = string.Join(", ", generatedMoves.Select(m => m.Move.ToString()));
+            var allMoves = string.Join(", ", generatedMoves.Select(m => m.Move.ToUci()));
             Assert.Fail($"Best move illegal: {bestMoveStr}. Generated: {allMoves}");
         }
 
@@ -407,8 +411,8 @@ public class EngineTests
         if (parts.Length > 2 && parts[2] == "ponder")
         {
             var ponderStr = parts[3];
-            var ponderMove = game.Pos.GenerateMoves().FirstOrDefault(m => m.Move.ToString() == ponderStr);
-            Assert.False(ponderMove.Equals(default(ExtMove)), $"Ponder move illegal: {ponderStr}");
+            var ponderMove = game.Pos.GenerateMoves().FirstOrDefault(m => m.Move.ToUci() == ponderStr);
+            Assert.False(ponderMove.Equals(default), $"Ponder move illegal: {ponderStr}");
         }
     }
 }
